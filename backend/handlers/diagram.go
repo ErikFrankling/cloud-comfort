@@ -13,11 +13,12 @@ import (
 )
 
 type GraphNode struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	Category string `json:"category"` // networking|compute|storage|database|security|other|vpc|subnet|global
-	Kind     string `json:"kind"`     // "group" | "resource"
-	Parent   string `json:"parent,omitempty"`
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Category     string `json:"category"`     // networking|compute|storage|database|security|other|vpc|subnet|global
+	Kind         string `json:"kind"`         // "group" | "resource"
+	ResourceType string `json:"resourceType"` // raw terraform resource type, e.g. "aws_s3_bucket"
+	Parent       string `json:"parent,omitempty"`
 }
 
 type GraphEdge struct {
@@ -392,12 +393,14 @@ func dotToGraph(dot string) DiagramResponse {
 		default:
 			parentID = "global"
 		}
+		rtype := strings.SplitN(label, ".", 2)[0]
 		jsonNodes = append(jsonNodes, GraphNode{
-			ID:       nid,
-			Label:    humanLabel(label),
-			Category: resourceCategory(strings.SplitN(label, ".", 2)[0]),
-			Kind:     "resource",
-			Parent:   parentID,
+			ID:           nid,
+			Label:        humanLabel(label),
+			Category:     resourceCategory(rtype),
+			Kind:         "resource",
+			ResourceType: rtype,
+			Parent:       parentID,
 		})
 	}
 

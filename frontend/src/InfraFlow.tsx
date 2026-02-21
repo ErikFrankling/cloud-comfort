@@ -14,13 +14,103 @@ import {
   useEdgesState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import {
+  SiAmazons3,
+  SiAmazonec2,
+  SiAwslambda,
+  SiAmazonrds,
+  SiAmazondynamodb,
+  SiAmazonecs,
+  SiAmazoneks,
+  SiAmazonelasticache,
+  SiAmazoniam,
+  SiAmazoncloudwatch,
+  SiAmazoncognito,
+  SiAmazonapigateway,
+  SiAmazonsqs,
+  SiAmazonredshift,
+  SiAmazonroute53,
+  SiAwselasticloadbalancing,
+  SiAwsfargate,
+  SiAwssecretsmanager,
+  SiAmazonwebservices,
+} from 'react-icons/si'
+import type { IconType } from 'react-icons'
 
 export interface ApiNode {
   id: string
   label: string
   category: string
   kind: 'group' | 'resource'
+  resourceType?: string
   parent?: string
+}
+
+const resourceIcons: Record<string, IconType> = {
+  aws_s3_bucket:                               SiAmazons3,
+  aws_s3_bucket_versioning:                    SiAmazons3,
+  aws_s3_bucket_policy:                        SiAmazons3,
+  aws_s3_bucket_public_access_block:           SiAmazons3,
+  aws_s3_bucket_server_side_encryption_configuration: SiAmazons3,
+  aws_instance:                                SiAmazonec2,
+  aws_launch_template:                         SiAmazonec2,
+  aws_launch_configuration:                    SiAmazonec2,
+  aws_autoscaling_group:                       SiAmazonec2,
+  aws_lambda_function:                         SiAwslambda,
+  aws_lambda_permission:                       SiAwslambda,
+  aws_db_instance:                             SiAmazonrds,
+  aws_db_subnet_group:                         SiAmazonrds,
+  aws_rds_cluster:                             SiAmazonrds,
+  aws_dynamodb_table:                          SiAmazondynamodb,
+  aws_ecs_cluster:                             SiAmazonecs,
+  aws_ecs_service:                             SiAmazonecs,
+  aws_ecs_task_definition:                     SiAmazonecs,
+  aws_eks_cluster:                             SiAmazoneks,
+  aws_eks_node_group:                          SiAmazoneks,
+  aws_elasticache_cluster:                     SiAmazonelasticache,
+  aws_elasticache_replication_group:           SiAmazonelasticache,
+  aws_iam_role:                                SiAmazoniam,
+  aws_iam_policy:                              SiAmazoniam,
+  aws_iam_user:                                SiAmazoniam,
+  aws_iam_group:                               SiAmazoniam,
+  aws_iam_instance_profile:                    SiAmazoniam,
+  aws_cloudwatch_log_group:                    SiAmazoncloudwatch,
+  aws_cloudwatch_metric_alarm:                 SiAmazoncloudwatch,
+  aws_cognito_user_pool:                       SiAmazoncognito,
+  aws_cognito_identity_pool:                   SiAmazoncognito,
+  aws_api_gateway_rest_api:                    SiAmazonapigateway,
+  aws_api_gateway_v2_api:                      SiAmazonapigateway,
+  aws_sqs_queue:                               SiAmazonsqs,
+  aws_redshift_cluster:                        SiAmazonredshift,
+  aws_route53_zone:                            SiAmazonroute53,
+  aws_route53_record:                          SiAmazonroute53,
+  aws_lb:                                      SiAwselasticloadbalancing,
+  aws_alb:                                     SiAwselasticloadbalancing,
+  aws_lb_listener:                             SiAwselasticloadbalancing,
+  aws_lb_target_group:                         SiAwselasticloadbalancing,
+  aws_fargate_profile:                         SiAwsfargate,
+  aws_secretsmanager_secret:                   SiAwssecretsmanager,
+}
+
+function getIcon(resourceType?: string): IconType | null {
+  if (!resourceType) return null
+  if (resourceIcons[resourceType]) return resourceIcons[resourceType]
+  if (resourceType.startsWith('aws_s3'))            return SiAmazons3
+  if (resourceType.startsWith('aws_lambda'))        return SiAwslambda
+  if (resourceType.startsWith('aws_ecs'))           return SiAmazonecs
+  if (resourceType.startsWith('aws_eks'))           return SiAmazoneks
+  if (resourceType.startsWith('aws_iam'))           return SiAmazoniam
+  if (resourceType.startsWith('aws_rds') || resourceType.startsWith('aws_db')) return SiAmazonrds
+  if (resourceType.startsWith('aws_dynamodb'))      return SiAmazondynamodb
+  if (resourceType.startsWith('aws_elasticache'))   return SiAmazonelasticache
+  if (resourceType.startsWith('aws_cloudwatch'))    return SiAmazoncloudwatch
+  if (resourceType.startsWith('aws_cognito'))       return SiAmazoncognito
+  if (resourceType.startsWith('aws_api_gateway'))   return SiAmazonapigateway
+  if (resourceType.startsWith('aws_sqs'))           return SiAmazonsqs
+  if (resourceType.startsWith('aws_route53'))       return SiAmazonroute53
+  if (resourceType.startsWith('aws_lb') || resourceType.startsWith('aws_alb') || resourceType.startsWith('aws_elb')) return SiAwselasticloadbalancing
+  if (resourceType.startsWith('aws_secretsmanager')) return SiAwssecretsmanager
+  return SiAmazonwebservices
 }
 
 export interface ApiEdge {
@@ -31,7 +121,7 @@ export interface ApiEdge {
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 const NODE_W = 180
-const NODE_H = 56
+const NODE_H = 72
 const GROUP_PAD = 24
 const GROUP_HEADER = 36
 const GROUP_GAP = 48
@@ -56,6 +146,7 @@ const groupCfg: Record<string, { bg: string; border: string; text: string; dashe
 function ResourceNode({ data }: NodeProps) {
   const d = data as any
   const s = catStyle[d.category] ?? catStyle.other
+  const Icon = getIcon(d.resourceType)
   return (
     <div
       className="resource-node-inner"
@@ -63,7 +154,7 @@ function ResourceNode({ data }: NodeProps) {
         background: s.bg,
         border: `2px solid ${s.border}`,
         borderRadius: 6,
-        padding: '8px 10px',
+        padding: '6px 10px',
         color: s.text,
         fontSize: 11,
         fontWeight: 600,
@@ -71,13 +162,17 @@ function ResourceNode({ data }: NodeProps) {
         textAlign: 'center',
         lineHeight: 1.35,
         boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
-        // CSS vars so the stylesheet can reference the category colour
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 4,
         ['--node-border' as any]: s.border,
       }}
     >
       <Handle type="target" position={Position.Top}
         style={{ background: s.border, width: 8, height: 8 }} />
-      {d.label}
+      {Icon && <Icon size={18} color={s.border} />}
+      <span>{d.label}</span>
       <Handle type="source" position={Position.Bottom}
         style={{ background: s.border, width: 8, height: 8 }} />
     </div>
@@ -210,7 +305,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
             id: rid, type: 'resource',
             parentId: sid, extent: 'parent',
             position: { x: GROUP_PAD + pos[rid].x, y: GROUP_HEADER + GROUP_PAD + pos[rid].y },
-            data: { label: byId[rid].label, category: byId[rid].category },
+            data: { label: byId[rid].label, category: byId[rid].category, resourceType: byId[rid].resourceType },
             zIndex: 2,
           } as Node)
         }
