@@ -7,20 +7,36 @@ import (
 	"os"
 
 	"cloud-comfort/backend/handlers"
+	"cloud-comfort/backend/llm"
 	"cloud-comfort/backend/terraform"
 
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 const workDir = "./workdir"
 
 func main() {
+	// Load .env file — check current dir and parent (project root)
+	_ = godotenv.Load()
+	_ = godotenv.Load("../.env")
+
 	tfSvc, err := terraform.NewService(workDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	tfSvc.SetEnv(collectCloudEnv())
+
+	// Create LLM client
+	llmClient := llm.NewClient(llm.Config{
+		BaseURL:   getEnvOr("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+		APIKey:    os.Getenv("LLM_API_KEY"),
+		Model:     getEnvOr("LLM_MODEL", "openai/gpt-4o"),
+		Streaming: getEnvOr("LLM_STREAMING", "true") == "true",
+	})
+
+	absWorkDir := tfSvc.WorkDir()
 
 	mux := http.NewServeMux()
 
@@ -30,14 +46,13 @@ func main() {
 	mux.HandleFunc("POST /api/terraform/apply", handlers.HandleApply(tfSvc))
 
 	// File management
-	absWorkDir := tfSvc.WorkDir()
 	mux.HandleFunc("GET /api/terraform/files", handlers.HandleListFiles(absWorkDir))
 	mux.HandleFunc("GET /api/terraform/files/{name}", handlers.HandleGetFile(absWorkDir))
 	mux.HandleFunc("PUT /api/terraform/files/{name}", handlers.HandleUploadFile(absWorkDir))
 	mux.HandleFunc("DELETE /api/terraform/files/{name}", handlers.HandleDeleteFile(absWorkDir))
 
-	// Chat endpoint
-	mux.HandleFunc("POST /api/chat", handlers.HandleChat)
+	// Chat endpoint (SSE streaming with LLM + validation)
+	mux.HandleFunc("POST /api/chat", handlers.HandleChat(llmClient, tfSvc))
 
 	// Health check
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +74,13 @@ func main() {
 	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func getEnvOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 // collectCloudEnv reads common cloud auth env vars and returns them as a map.

@@ -5,6 +5,7 @@ go 1.23
 require (
 	github.com/hashicorp/terraform-exec v0.21.0
 	github.com/hashicorp/terraform-json v0.22.1
+	github.com/joho/godotenv v1.5.1
 	github.com/rs/cors v1.11.1
 )
 

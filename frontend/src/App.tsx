@@ -2,14 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 type FileEntry = { name: string; size: number }
 type SelectedFile = { name: string; content: string } | null
+type ChatMsg = { role: string; text: string }
+type LLMHistory = { role: string; content: string }[]
 
 function App() {
   const [message, setMessage] = useState('')
-  const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([])
+  const [chatLog, setChatLog] = useState<ChatMsg[]>([])
+  const [history, setHistory] = useState<LLMHistory>([])
+  const [sending, setSending] = useState(false)
   const [activeTab, setActiveTab] = useState<'graph' | 'files'>('graph')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(scrollToBottom, [chatLog])
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -28,23 +39,109 @@ function App() {
   }, [activeTab, fetchFiles])
 
   const sendMessage = async () => {
-    if (!message.trim()) return
+    if (!message.trim() || sending) return
 
-    setChatLog((prev) => [...prev, { role: 'user', text: message }])
     const userMsg = message
     setMessage('')
+    setSending(true)
+    setChatLog((prev) => [...prev, { role: 'user', text: userMsg }])
+
+    // Add placeholder for assistant response
+    const assistantIdx = chatLog.length + 1
+    setChatLog((prev) => [...prev, { role: 'assistant', text: '' }])
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ message: userMsg, history }),
       })
-      const data = await res.json()
-      setChatLog((prev) => [...prev, { role: 'assistant', text: data.reply }])
+
+      if (!res.ok) {
+        const errText = await res.text()
+        setChatLog((prev) => {
+          const updated = [...prev]
+          updated[assistantIdx] = { role: 'error', text: errText }
+          return updated
+        })
+        setSending(false)
+        return
+      }
+
+      const reader = res.body?.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+      let buffer = ''
+
+      if (!reader) throw new Error('No reader')
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const jsonStr = line.slice(6)
+
+          try {
+            const event = JSON.parse(jsonStr)
+
+            if (event.content) {
+              accumulated += event.content
+              setChatLog((prev) => {
+                const updated = [...prev]
+                updated[assistantIdx] = { role: 'assistant', text: accumulated }
+                return updated
+              })
+            }
+
+            if (event.tool_call) {
+              accumulated += `\n[${event.tool_call.result}]\n`
+              setChatLog((prev) => {
+                const updated = [...prev]
+                updated[assistantIdx] = { role: 'assistant', text: accumulated }
+                return updated
+              })
+              // Refresh files since a file was likely written
+              fetchFiles()
+            }
+
+            if (event.error) {
+              setChatLog((prev) => {
+                const updated = [...prev]
+                updated[assistantIdx] = { role: 'error', text: event.error }
+                return updated
+              })
+            }
+
+            if (event.done) {
+              // Update history for future requests
+              setHistory((prev) => [
+                ...prev,
+                { role: 'user', content: userMsg },
+                { role: 'assistant', content: accumulated },
+              ])
+            }
+          } catch {
+            // skip unparseable lines
+          }
+        }
+      }
     } catch {
-      setChatLog((prev) => [...prev, { role: 'error', text: 'Failed to reach backend' }])
+      setChatLog((prev) => {
+        const updated = [...prev]
+        updated[assistantIdx] = { role: 'error', text: 'Failed to reach backend' }
+        return updated
+      })
     }
+
+    setSending(false)
   }
 
   const viewFile = async (name: string) => {
@@ -83,7 +180,6 @@ function App() {
       // silently fail for now
     }
 
-    // reset the input so the same file can be re-uploaded
     if (uploadRef.current) uploadRef.current.value = ''
   }
 
@@ -100,6 +196,7 @@ function App() {
                 <strong>{msg.role}:</strong> {msg.text}
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
           <div className="chat-input">
             <input
@@ -107,8 +204,11 @@ function App() {
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Describe your infrastructure..."
+              disabled={sending}
             />
-            <button onClick={sendMessage}>Send</button>
+            <button onClick={sendMessage} disabled={sending}>
+              {sending ? '...' : 'Send'}
+            </button>
           </div>
         </div>
 
@@ -153,7 +253,7 @@ function App() {
                 <div className="files-layout">
                   <div className="files-list">
                     {files.length === 0 && (
-                      <p className="empty-state">No .tf files yet. Upload one to get started.</p>
+                      <p className="empty-state">No .tf files yet. Upload one or ask the AI to create one.</p>
                     )}
                     {files.map((f) => (
                       <div
