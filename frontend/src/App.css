@@ -1,0 +1,107 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e0e0e0;
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  padding: 1rem;
+  border-bottom: 1px solid #2a2d35;
+}
+
+header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.panels {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.chat-panel {
+  width: 400px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2a2d35;
+}
+
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.chat-msg {
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.chat-msg.user {
+  color: #8ab4f8;
+}
+
+.chat-msg.assistant {
+  color: #c8e6c9;
+}
+
+.chat-msg.error {
+  color: #ef9a9a;
+}
+
+.chat-input {
+  display: flex;
+  padding: 0.75rem;
+  border-top: 1px solid #2a2d35;
+  gap: 0.5rem;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #2a2d35;
+  border-radius: 6px;
+  background: #1a1d27;
+  color: #e0e0e0;
+  font-size: 0.875rem;
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: #8ab4f8;
+}
+
+.chat-input button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #8ab4f8;
+  color: #0f1117;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-input button:hover {
+  background: #aecbfa;
+}
+
+.graph-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}

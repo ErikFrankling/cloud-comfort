@@ -1,0 +1,41 @@
+# Environment
+.env
+.env.local
+
+# Dependencies
+node_modules/
+/frontend/node_modules
+/backend/vendor
+
+# Build outputs
+/frontend/dist
+/backend/server
+/backend/cloud-comfort
+*.exe
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+workdir/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Go
+*.test
+*.out
+.go/
