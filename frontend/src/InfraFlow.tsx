@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dagre from '@dagrejs/dagre'
 import {
   ReactFlow,
@@ -137,6 +137,96 @@ const resourceIconMap: Record<string, AwsIcon> = {
   aws_route53_record:               ArchitectureServiceAmazonRoute53 as AwsIcon,
 }
 
+// ─── Descriptions ────────────────────────────────────────────────────────────
+const resourceDescriptions: Record<string, string> = {
+  aws_vpc:                          'Isolated virtual network in AWS. Defines the IP address range and network topology for your resources.',
+  aws_subnet:                       'A range of IP addresses within a VPC. Resources in public subnets can be reached from the internet; private subnets cannot.',
+  aws_internet_gateway:             'Enables communication between your VPC and the internet. Attach one to a VPC to allow public traffic.',
+  aws_nat_gateway:                  'Allows private subnet resources to initiate outbound internet traffic without being directly reachable from the internet.',
+  aws_route_table:                  'Contains routing rules that control where network traffic from subnets is directed.',
+  aws_route_table_association:      'Associates a route table with a specific subnet, applying its routing rules to that subnet.',
+  aws_security_group:               'Acts as a virtual firewall controlling inbound and outbound traffic for AWS resources using allow rules.',
+  aws_security_group_rule:          'An individual inbound or outbound rule within a security group.',
+  aws_network_acl:                  'Optional stateless firewall at the subnet level. Evaluates rules in order for inbound and outbound traffic.',
+  aws_eip:                          'A static public IPv4 address that can be associated with an instance or NAT gateway.',
+  aws_network_interface:            'A virtual network card that can be attached to an EC2 instance within a VPC.',
+  aws_vpc_endpoint:                 'Privately connects your VPC to AWS services without requiring an internet gateway or NAT device.',
+  aws_vpc_peering_connection:       'A networking connection between two VPCs enabling private routing between them.',
+  aws_customer_gateway:             'Represents the on-premises side of a VPN connection to AWS.',
+  aws_vpn_gateway:                  'The AWS-side anchor of a VPN connection, attached to a VPC.',
+  aws_instance:                     'A virtual machine running in EC2. Choose instance type to balance compute, memory, and networking.',
+  aws_launch_template:              'Reusable configuration for launching EC2 instances, including AMI, instance type, and security groups.',
+  aws_launch_configuration:         'Legacy EC2 launch configuration used with Auto Scaling groups.',
+  aws_autoscaling_group:            'Automatically adjusts the number of EC2 instances based on demand or a schedule.',
+  aws_lambda_function:              'Serverless function that runs code in response to events without provisioning servers.',
+  aws_lambda_permission:            'Grants an AWS service or account permission to invoke a Lambda function.',
+  aws_ecs_cluster:                  'Logical grouping of ECS tasks or services. Can run on EC2 or Fargate.',
+  aws_ecs_service:                  'Maintains a desired number of running ECS task instances and integrates with load balancers.',
+  aws_ecs_task_definition:          'Blueprint for ECS tasks, defining container images, CPU/memory, networking, and IAM roles.',
+  aws_eks_cluster:                  'Managed Kubernetes control plane. Runs the Kubernetes API server and etcd.',
+  aws_eks_node_group:               'A group of EC2 instances registered as Kubernetes worker nodes in an EKS cluster.',
+  aws_s3_bucket:                    'Object storage for any amount of data. Used for backups, static assets, data lakes, and more.',
+  aws_s3_bucket_versioning:         'Enables versioning on an S3 bucket, preserving every version of every object.',
+  aws_s3_bucket_policy:             'Resource-based policy that controls access to an S3 bucket and its objects.',
+  aws_s3_bucket_public_access_block: 'Settings to block public access to an S3 bucket regardless of ACLs or bucket policies.',
+  aws_db_instance:                  'A managed relational database instance (RDS). Supports MySQL, PostgreSQL, SQL Server, and more.',
+  aws_db_subnet_group:              'Specifies which subnets an RDS instance can be placed in, controlling its network placement.',
+  aws_rds_cluster:                  'A managed Aurora DB cluster with auto-scaling storage and multi-AZ replication.',
+  aws_dynamodb_table:               'Fully managed NoSQL key-value and document database with single-digit millisecond performance.',
+  aws_elasticache_cluster:          'Managed in-memory cache (Redis or Memcached) for speeding up database and application performance.',
+  aws_elasticache_replication_group: 'A Redis replication group with a primary node and read replicas for high availability.',
+  aws_redshift_cluster:             'Managed petabyte-scale data warehouse optimised for analytical queries.',
+  aws_iam_role:                     'An identity with permissions that can be assumed by AWS services, users, or other accounts.',
+  aws_iam_policy:                   'A document defining permissions that can be attached to IAM identities or resources.',
+  aws_iam_user:                     'A permanent identity for a person or application interacting with AWS.',
+  aws_iam_group:                    'A collection of IAM users that share the same permissions.',
+  aws_iam_instance_profile:         'Container for an IAM role that can be attached to an EC2 instance.',
+  aws_secretsmanager_secret:        'Stores and rotates sensitive information such as database passwords and API keys.',
+  aws_lb:                           'Application Load Balancer distributing HTTP/HTTPS traffic across targets based on content.',
+  aws_alb:                          'Application Load Balancer distributing HTTP/HTTPS traffic across targets based on content.',
+  aws_lb_listener:                  'Checks for connection requests using a configured protocol and port, then routes to a target group.',
+  aws_lb_target_group:              'Routes requests to registered targets (instances, IPs, Lambdas) using a health-checked algorithm.',
+  aws_nlb:                          'Network Load Balancer handling millions of TCP/UDP requests per second at ultra-low latency.',
+  aws_sqs_queue:                    'Fully managed message queue for decoupling and scaling microservices and distributed systems.',
+  aws_cloudwatch_log_group:         'Container for CloudWatch log streams. Stores and organises log data from AWS services and apps.',
+  aws_cloudwatch_metric_alarm:      'Watches a CloudWatch metric and triggers an action when it crosses a defined threshold.',
+  aws_cognito_user_pool:            'User directory for authentication. Handles sign-up, sign-in, and token issuance for your app.',
+  aws_cognito_identity_pool:        'Grants users temporary AWS credentials to access AWS services directly from your app.',
+  aws_api_gateway_rest_api:         'Managed REST API gateway that routes HTTP requests to backend services like Lambda or EC2.',
+  aws_api_gateway_v2_api:           'Managed HTTP or WebSocket API for low-latency, scalable API endpoints backed by Lambda or HTTP.',
+  aws_route53_zone:                 'A container for DNS records for a domain, hosted in Route 53.',
+  aws_route53_record:               'A DNS record within a Route 53 hosted zone (A, CNAME, MX, etc.).',
+}
+
+function getDescription(resourceType?: string): string {
+  if (!resourceType) return ''
+  if (resourceDescriptions[resourceType]) return resourceDescriptions[resourceType]
+  // prefix fallbacks
+  if (resourceType.startsWith('aws_s3'))          return resourceDescriptions.aws_s3_bucket
+  if (resourceType.startsWith('aws_lambda'))      return resourceDescriptions.aws_lambda_function
+  if (resourceType.startsWith('aws_ecs'))         return resourceDescriptions.aws_ecs_cluster
+  if (resourceType.startsWith('aws_eks'))         return resourceDescriptions.aws_eks_cluster
+  if (resourceType.startsWith('aws_iam'))         return resourceDescriptions.aws_iam_role
+  if (resourceType.startsWith('aws_rds') || resourceType.startsWith('aws_db')) return resourceDescriptions.aws_db_instance
+  if (resourceType.startsWith('aws_dynamodb'))    return resourceDescriptions.aws_dynamodb_table
+  if (resourceType.startsWith('aws_elasticache')) return resourceDescriptions.aws_elasticache_cluster
+  if (resourceType.startsWith('aws_cloudwatch'))  return resourceDescriptions.aws_cloudwatch_log_group
+  if (resourceType.startsWith('aws_cognito'))     return resourceDescriptions.aws_cognito_user_pool
+  if (resourceType.startsWith('aws_api_gateway')) return resourceDescriptions.aws_api_gateway_rest_api
+  if (resourceType.startsWith('aws_sqs'))         return resourceDescriptions.aws_sqs_queue
+  if (resourceType.startsWith('aws_route53'))     return resourceDescriptions.aws_route53_zone
+  if (resourceType.startsWith('aws_lb') || resourceType.startsWith('aws_alb')) return resourceDescriptions.aws_lb
+  if (resourceType.startsWith('aws_secretsmanager')) return resourceDescriptions.aws_secretsmanager_secret
+  if (resourceType.startsWith('aws_autoscaling')) return resourceDescriptions.aws_autoscaling_group
+  if (resourceType.startsWith('aws_security_group')) return resourceDescriptions.aws_security_group
+  if (resourceType.startsWith('aws_route_table')) return resourceDescriptions.aws_route_table
+  if (resourceType.startsWith('aws_nat_gateway')) return resourceDescriptions.aws_nat_gateway
+  if (resourceType.startsWith('aws_internet_gateway')) return resourceDescriptions.aws_internet_gateway
+  if (resourceType.startsWith('aws_subnet'))      return resourceDescriptions.aws_subnet
+  if (resourceType.startsWith('aws_vpc'))         return resourceDescriptions.aws_vpc
+  return ''
+}
+
 function getIcon(resourceType?: string): AwsIcon | null {
   if (!resourceType) return null
   if (resourceIconMap[resourceType]) return resourceIconMap[resourceType]
@@ -199,6 +289,21 @@ function ResourceNode({ data }: NodeProps) {
   const d = data as any
   const s = catStyle[d.category] ?? catStyle.other
   const Icon = getIcon(d.resourceType)
+  const description = getDescription(d.resourceType)
+  const [tooltip, setTooltip] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const onMouseEnter = () => {
+    timer.current = setTimeout(() => setTooltip(true), 500)
+  }
+  const onMouseLeave = () => {
+    if (timer.current) clearTimeout(timer.current)
+    setTooltip(false)
+  }
+
+  // extract just the resource name (after the colon)
+  const name = d.label?.includes(': ') ? d.label.split(': ')[1] : d.label
+
   return (
     <div
       className="resource-node-inner"
@@ -220,13 +325,29 @@ function ResourceNode({ data }: NodeProps) {
         gap: 4,
         ['--node-border' as any]: s.border,
       }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <Handle type="target" position={Position.Top}
         style={{ background: s.border, width: 8, height: 8 }} />
       {Icon && <Icon size={22} />}
-      <span>{d.label}</span>
+      <span>{d.label?.includes(': ') ? d.label.split(': ')[1] : d.label}</span>
       <Handle type="source" position={Position.Bottom}
         style={{ background: s.border, width: 8, height: 8 }} />
+
+      {tooltip && (
+        <div className="node-tooltip">
+          <div className="node-tooltip-header">
+            {Icon && <Icon size={20} />}
+            <span className="node-tooltip-name">{name}</span>
+          </div>
+          <div className="node-tooltip-type">{d.resourceType}</div>
+          {description && <p className="node-tooltip-desc">{description}</p>}
+          <div className="node-tooltip-badge" style={{ background: s.border }}>
+            {d.category}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
