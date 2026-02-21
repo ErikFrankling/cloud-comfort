@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Editor from '@monaco-editor/react'
 import mermaid from 'mermaid'
 
 mermaid.initialize({ startOnLoad: false, theme: 'dark' })
@@ -18,6 +19,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<'graph' | 'files' | 'deploy'>('deploy')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null)
+  const [fileChanged, setFileChanged] = useState(false)
   const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
   const [deployOutput, setDeployOutput] = useState<string[]>([])
   const [deployError, setDeployError] = useState<string | null>(null)
@@ -202,6 +204,27 @@ function App() {
     a.download = selectedFile.name
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleEditorChange = (value: string | undefined) => {
+    if (selectedFile && value !== undefined) {
+      setSelectedFile({ ...selectedFile, content: value })
+      setFileChanged(true)
+    }
+  }
+
+  const saveFile = async () => {
+    if (!selectedFile) return
+    try {
+      await fetch(`/api/terraform/files/${encodeURIComponent(selectedFile.name)}`, {
+        method: 'PUT',
+        body: selectedFile.content,
+      })
+      setFileChanged(false)
+      fetchFiles()
+    } catch {
+      // silently fail for now
+    }
   }
 
   const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -424,8 +447,29 @@ function App() {
                   <div className="file-content">
                     {selectedFile ? (
                       <>
-                        <div className="file-content-header">{selectedFile.name}</div>
-                        <pre>{selectedFile.content}</pre>
+                        <div className="file-content-header">
+                          {selectedFile.name}
+                          {fileChanged && <span className="unsaved">*</span>}
+                        </div>
+                        <Editor
+                          height="100%"
+                          language="hcl"
+                          theme="vs-dark"
+                          value={selectedFile.content}
+                          onChange={handleEditorChange}
+                          options={{
+                            minimap: { enabled: false },
+                            fontSize: 13,
+                            lineNumbers: 'on',
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                          }}
+                        />
+                        <div className="file-content-actions">
+                          {fileChanged && (
+                            <button onClick={saveFile} className="save-btn">Save</button>
+                          )}
+                        </div>
                       </>
                     ) : (
                       <p className="empty-state">Select a file to view its contents.</p>

@@ -231,6 +231,14 @@ header h1 {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+.file-content > .monaco-editor,
+.file-content > .monaco-editor > .overflow-guard {
+  flex: 1;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
 .file-content-header {
@@ -240,6 +248,46 @@ header h1 {
   font-family: monospace;
   border-bottom: 1px solid #2a2d35;
   color: #8ab4f8;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-content-header .unsaved {
+  color: #ff9800;
+  font-size: 1.2rem;
+}
+
+.file-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-content > .monaco-editor {
+  flex: 1;
+}
+
+.file-content-actions {
+  padding: 0.5rem;
+  border-top: 1px solid #2a2d35;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: #4caf50;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background: #66bb6a;
 }
 
 .file-content pre {
