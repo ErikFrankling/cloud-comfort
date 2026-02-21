@@ -39,3 +39,5 @@ npm-debug.log*
 *.test
 *.out
 .go/
+
+.direnv*

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -85,16 +86,22 @@ func buildSystemPrompt(workDir string) string {
 	}
 
 	sb.WriteString(`
-## Validation
-- After you write files, terraform fmt and terraform validate are run automatically.
-- If validation fails, you will see the errors in the tool result. Fix the files and try again.
-- Common issues: typos in resource types, missing required arguments, invalid HCL syntax.
+## Automated pipeline
+After you write files, the following pipeline runs automatically:
+1. terraform fmt — auto-formats your files
+2. terraform validate — checks for syntax/config errors
+3. terraform init — downloads providers (if validation passes)
+4. terraform plan — dry-run to check for errors (if init passes)
+
+If ANY step fails, you will receive the error output. Fix the files and try again.
+The user must manually approve terraform apply (deployment). You cannot run apply.
 
 ## Guidelines
 - Always explain what you're doing before making changes.
 - Use standard Terraform best practices (separate files for main, variables, outputs, providers when appropriate).
 - When modifying a file, describe what changed and why.
 - Be concise but thorough in your explanations.
+- If you receive terraform plan errors (e.g. missing variable defaults), fix them immediately.
 `)
 
 	return sb.String()
@@ -162,8 +169,9 @@ func executeToolCall(tc llm.ToolCall, workDir string) llm.Message {
 	}
 }
 
-// runValidation formats files and runs terraform validate, returning a summary string.
-func runValidation(ctx context.Context, tfSvc *terraform.Service) string {
+// runValidation formats files and runs terraform validate, returning a summary
+// string and whether validation passed.
+func runValidation(ctx context.Context, tfSvc *terraform.Service) (string, bool) {
 	var sb strings.Builder
 
 	// Auto-format
@@ -176,36 +184,37 @@ func runValidation(ctx context.Context, tfSvc *terraform.Service) string {
 	// Validate (only if init has been run)
 	if !tfSvc.IsInitialized() {
 		sb.WriteString("\nterraform validate: skipped (run terraform init first)")
-		return sb.String()
+		return sb.String(), true // treat as passed — init will run next
 	}
 
 	result, err := tfSvc.Validate(ctx)
 	if err != nil {
 		fmt.Fprintf(&sb, "\nterraform validate: error (%v)", err)
-		return sb.String()
+		return sb.String(), false
 	}
 
 	if result.Valid {
 		sb.WriteString("\nterraform validate: OK")
-	} else {
-		fmt.Fprintf(&sb, "\nterraform validate: FAILED (%d errors, %d warnings)", result.ErrorCount, result.WarningCount)
-		for _, d := range result.Diagnostics {
-			loc := ""
-			if d.Range != nil {
-				loc = fmt.Sprintf(" (%s line %d)", d.Range.Filename, d.Range.Start.Line)
-			}
-			severity := string(d.Severity)
-			if len(severity) > 0 {
-				severity = strings.ToUpper(severity[:1]) + severity[1:]
-			}
-			fmt.Fprintf(&sb, "\n  %s: %s%s", severity, d.Summary, loc)
-			if d.Detail != "" {
-				fmt.Fprintf(&sb, "\n    %s", d.Detail)
-			}
+		return sb.String(), true
+	}
+
+	fmt.Fprintf(&sb, "\nterraform validate: FAILED (%d errors, %d warnings)", result.ErrorCount, result.WarningCount)
+	for _, d := range result.Diagnostics {
+		loc := ""
+		if d.Range != nil {
+			loc = fmt.Sprintf(" (%s line %d)", d.Range.Filename, d.Range.Start.Line)
+		}
+		severity := string(d.Severity)
+		if len(severity) > 0 {
+			severity = strings.ToUpper(severity[:1]) + severity[1:]
+		}
+		fmt.Fprintf(&sb, "\n  %s: %s%s", severity, d.Summary, loc)
+		if d.Detail != "" {
+			fmt.Fprintf(&sb, "\n    %s", d.Detail)
 		}
 	}
 
-	return sb.String()
+	return sb.String(), false
 }
 
 // HandleChat returns a handler that streams LLM responses via SSE with tool calling.
@@ -229,23 +238,36 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 		flusher.Flush()
 
 		workDir := tfSvc.WorkDir()
-
-		// Build messages with system prompt containing current files
-		systemPrompt := buildSystemPrompt(workDir)
-		messages := []llm.Message{
-			{Role: "system", Content: systemPrompt},
-		}
-		messages = append(messages, req.History...)
-		messages = append(messages, llm.Message{Role: "user", Content: req.Message})
-
 		tools := []llm.Tool{writeFileTool}
 
-		// SSE writer that forwards content to the frontend
-		sseOut := &chatSSEWriter{w: w, f: flusher}
+		// Streaming callbacks that forward deltas to the frontend as SSE events
+		cb := &llm.StreamCallbacks{
+			OnContent: func(text string) {
+				sendSSEEvent(w, flusher, map[string]any{"content": text})
+			},
+			OnReasoning: func(text string) {
+				sendSSEEvent(w, flusher, map[string]any{"reasoning": text})
+			},
+		}
+
+		// Messages accumulated during the tool-call loop (assistant replies,
+		// tool results, validation feedback). Kept separate so we can rebuild
+		// the system prompt with fresh file contents each iteration.
+		var loopMessages []llm.Message
 
 		// Tool call loop — keep going until the LLM responds with just content
 		for {
-			assistantMsg, err := client.ChatStream(r.Context(), messages, tools, sseOut)
+			// Rebuild system prompt each iteration so the LLM always sees
+			// the current file contents, even after write_file calls.
+			systemPrompt := buildSystemPrompt(workDir)
+			messages := []llm.Message{
+				{Role: "system", Content: systemPrompt},
+			}
+			messages = append(messages, req.History...)
+			messages = append(messages, llm.Message{Role: "user", Content: req.Message})
+			messages = append(messages, loopMessages...)
+
+			assistantMsg, err := client.ChatStream(r.Context(), messages, tools, cb)
 			if err != nil {
 				sendSSEEvent(w, flusher, map[string]any{"error": err.Error()})
 				return
@@ -256,57 +278,96 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 				break
 			}
 
-			// Append assistant message with tool calls to history
-			messages = append(messages, *assistantMsg)
+			// Track assistant message with tool calls
+			loopMessages = append(loopMessages, *assistantMsg)
 
 			// Execute each tool call and collect results
 			for _, tc := range assistantMsg.ToolCalls {
 				result := executeToolCall(tc, workDir)
-				messages = append(messages, result)
+				loopMessages = append(loopMessages, result)
 
 				// Notify frontend about the file write
+				var tcArgs struct {
+					Filename string `json:"filename"`
+				}
+				_ = json.Unmarshal([]byte(tc.Function.Arguments), &tcArgs)
 				sendSSEEvent(w, flusher, map[string]any{
 					"tool_call": map[string]string{
-						"name":   tc.Function.Name,
-						"result": result.Content,
+						"name":     tc.Function.Name,
+						"filename": tcArgs.Filename,
+						"result":   result.Content,
 					},
 				})
 			}
 
 			// After all file writes, run fmt + validate and append feedback
-			validation := runValidation(r.Context(), tfSvc)
-			// Add validation result as a system-like user message so LLM sees it
-			messages = append(messages, llm.Message{
-				Role:    "user",
-				Content: "[System] Validation results after writing files:" + validation,
-			})
+			validation, valid := runValidation(r.Context(), tfSvc)
 
 			sendSSEEvent(w, flusher, map[string]any{
 				"validation": validation,
 			})
 
-			// Continue the loop — LLM will respond to tool results + validation
+			if !valid {
+				// Validation failed — feed errors to LLM to fix
+				loopMessages = append(loopMessages, llm.Message{
+					Role:    "user",
+					Content: "[System] Validation results after writing files:" + validation,
+				})
+				continue
+			}
+
+			// Validation passed — run init + plan automatically
+			sendSSEEvent(w, flusher, map[string]any{"phase": "init"})
+
+			var initBuf bytes.Buffer
+			if err := tfSvc.Init(r.Context(), &initBuf); err != nil {
+				initErr := fmt.Sprintf("[System] terraform init failed:\n%s\n%v", initBuf.String(), err)
+				loopMessages = append(loopMessages, llm.Message{
+					Role:    "user",
+					Content: initErr,
+				})
+				sendSSEEvent(w, flusher, map[string]any{"phase_error": "init", "error": err.Error()})
+				continue
+			}
+
+			sendSSEEvent(w, flusher, map[string]any{"phase": "plan"})
+
+			var planBuf bytes.Buffer
+			plan, hasChanges, err := tfSvc.Plan(r.Context(), &planBuf)
+			if err != nil {
+				planErr := fmt.Sprintf("[System] terraform plan failed:\n%s\n%v", planBuf.String(), err)
+				loopMessages = append(loopMessages, llm.Message{
+					Role:    "user",
+					Content: planErr,
+				})
+				sendSSEEvent(w, flusher, map[string]any{"phase_error": "plan", "error": err.Error()})
+				continue
+			}
+
+			// Plan succeeded — build a summary for the LLM
+			planSummary := fmt.Sprintf("[System] terraform plan succeeded (has_changes=%v).\n%s", hasChanges, planBuf.String())
+			loopMessages = append(loopMessages, llm.Message{
+				Role:    "user",
+				Content: planSummary,
+			})
+
+			// Notify frontend that plan is ready
+			planData := map[string]any{
+				"plan_ready":  true,
+				"has_changes": hasChanges,
+				"plan_output": planBuf.String(),
+			}
+			if plan != nil {
+				planJSON, _ := json.Marshal(plan)
+				planData["plan_json"] = string(planJSON)
+			}
+			sendSSEEvent(w, flusher, planData)
+
+			// Continue loop — LLM will summarize the plan for the user
 		}
 
 		sendSSEEvent(w, flusher, map[string]any{"done": true})
 	}
-}
-
-// chatSSEWriter writes content deltas as SSE events.
-type chatSSEWriter struct {
-	w http.ResponseWriter
-	f http.Flusher
-}
-
-func (s *chatSSEWriter) Write(p []byte) (int, error) {
-	text := string(p)
-	if text == "" {
-		return 0, nil
-	}
-	data, _ := json.Marshal(map[string]string{"content": text})
-	fmt.Fprintf(s.w, "data: %s\n\n", data)
-	s.f.Flush()
-	return len(p), nil
 }
 
 func sendSSEEvent(w http.ResponseWriter, f http.Flusher, payload any) {

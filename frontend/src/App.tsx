@@ -1,14 +1,73 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
 
 mermaid.initialize({ startOnLoad: false, theme: 'dark' })
 
 type FileEntry = { name: string; size: number }
 type SelectedFile = { name: string; content: string } | null
-type DeployStatus = 'idle' | 'init' | 'plan' | 'apply' | 'success' | 'error'
+type DeployStatus = 'idle' | 'init' | 'apply' | 'success' | 'error'
 
-type ChatMsg = { role: string; text: string }
+type ToolCallInfo = { name: string; filename: string; result: string }
+
+type MsgSegment =
+  | { type: 'text'; content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'tool_call'; info: ToolCallInfo }
+  | { type: 'phase'; label: string; error?: string }
+  | { type: 'plan_ready'; hasChanges: boolean }
+  | { type: 'validation'; content: string }
+
+type ChatMsg = { role: 'user' | 'assistant' | 'error'; segments: MsgSegment[] }
 type LLMHistory = { role: string; content: string }[]
+
+function ChatSegment({ segment }: { segment: MsgSegment }) {
+  switch (segment.type) {
+    case 'text':
+      return (
+        <Markdown remarkPlugins={[remarkGfm]}>
+          {segment.content}
+        </Markdown>
+      )
+    case 'reasoning':
+      return (
+        <details className="reasoning-block">
+          <summary>Reasoning</summary>
+          <div className="reasoning-content">{segment.content}</div>
+        </details>
+      )
+    case 'tool_call':
+      return (
+        <div className="tool-call-card">
+          <span className="tool-call-filename">{segment.info.filename}</span>
+          <span className="tool-call-result">{segment.info.result}</span>
+        </div>
+      )
+    case 'phase':
+      return (
+        <div className={`phase-indicator ${segment.error ? 'error' : ''}`}>
+          {segment.error
+            ? `${segment.label} failed: ${segment.error}`
+            : segment.label === 'init'
+              ? 'Running terraform init...'
+              : 'Running terraform plan...'}
+        </div>
+      )
+    case 'plan_ready':
+      return (
+        <div className="plan-ready-indicator">
+          Plan succeeded{segment.hasChanges ? ' — changes detected' : ' — no changes'}
+        </div>
+      )
+    case 'validation':
+      return (
+        <div className="validation-block">
+          <pre>{segment.content}</pre>
+        </div>
+      )
+  }
+}
 
 function App() {
   const [message, setMessage] = useState('')
@@ -21,7 +80,7 @@ function App() {
   const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
   const [deployOutput, setDeployOutput] = useState<string[]>([])
   const [deployError, setDeployError] = useState<string | null>(null)
-  const [, setPlanHasChanges] = useState<boolean | null>(null)
+  const [planReady, setPlanReady] = useState(false)
   const uploadRef = useRef<HTMLInputElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -77,17 +136,39 @@ function App() {
     }
   }, [activeTab, fetchFiles])
 
-  const sendMessage = async () => {
-    if (!message.trim() || sending) return
-
-    const userMsg = message
-    setMessage('')
+  const sendMessage = async (overrideMsg?: string) => {
+    const userMsg = overrideMsg || message
+    if (!userMsg.trim() || sending) return
+    if (!overrideMsg) setMessage('')
     setSending(true)
-    setChatLog((prev) => [...prev, { role: 'user', text: userMsg }])
+
+    setChatLog((prev) => [
+      ...prev,
+      { role: 'user', segments: [{ type: 'text', content: userMsg }] },
+    ])
 
     // Add placeholder for assistant response
     const assistantIdx = chatLog.length + 1
-    setChatLog((prev) => [...prev, { role: 'assistant', text: '' }])
+    setChatLog((prev) => [
+      ...prev,
+      { role: 'assistant', segments: [] },
+    ])
+
+    // Helper to update the assistant message's segments
+    const updateSegments = (updater: (segs: MsgSegment[]) => MsgSegment[]) => {
+      setChatLog((prev) => {
+        const updated = [...prev]
+        const msg = updated[assistantIdx]
+        if (!msg) return prev
+        updated[assistantIdx] = {
+          ...msg,
+          segments: updater([...msg.segments]),
+        }
+        return updated
+      })
+    }
+
+    let contentAccumulated = ''
 
     try {
       const res = await fetch('/api/chat', {
@@ -100,7 +181,10 @@ function App() {
         const errText = await res.text()
         setChatLog((prev) => {
           const updated = [...prev]
-          updated[assistantIdx] = { role: 'error', text: errText }
+          updated[assistantIdx] = {
+            role: 'error',
+            segments: [{ type: 'text', content: errText }],
+          }
           return updated
         })
         setSending(false)
@@ -109,7 +193,6 @@ function App() {
 
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
-      let accumulated = ''
       let buffer = ''
 
       if (!reader) throw new Error('No reader')
@@ -131,40 +214,88 @@ function App() {
           try {
             const event = JSON.parse(jsonStr)
 
+            if (event.reasoning) {
+              updateSegments((segs) => {
+                const last = segs[segs.length - 1]
+                if (last && last.type === 'reasoning') {
+                  return [...segs.slice(0, -1), { ...last, content: last.content + event.reasoning }]
+                }
+                return [...segs, { type: 'reasoning', content: event.reasoning }]
+              })
+            }
+
             if (event.content) {
-              accumulated += event.content
-              setChatLog((prev) => {
-                const updated = [...prev]
-                updated[assistantIdx] = { role: 'assistant', text: accumulated }
-                return updated
+              contentAccumulated += event.content
+              updateSegments((segs) => {
+                const last = segs[segs.length - 1]
+                if (last && last.type === 'text') {
+                  return [...segs.slice(0, -1), { ...last, content: last.content + event.content }]
+                }
+                return [...segs, { type: 'text', content: event.content }]
               })
             }
 
             if (event.tool_call) {
-              accumulated += `\n[${event.tool_call.result}]\n`
-              setChatLog((prev) => {
-                const updated = [...prev]
-                updated[assistantIdx] = { role: 'assistant', text: accumulated }
-                return updated
-              })
-              // Refresh files since a file was likely written
+              updateSegments((segs) => [
+                ...segs,
+                {
+                  type: 'tool_call',
+                  info: {
+                    name: event.tool_call.name,
+                    filename: event.tool_call.filename || '',
+                    result: event.tool_call.result,
+                  },
+                },
+              ])
+              fetchFiles()
+            }
+
+            if (event.validation) {
+              updateSegments((segs) => [
+                ...segs,
+                { type: 'validation', content: event.validation },
+              ])
+            }
+
+            if (event.phase) {
+              updateSegments((segs) => [
+                ...segs,
+                { type: 'phase', label: event.phase },
+              ])
+            }
+
+            if (event.phase_error) {
+              updateSegments((segs) => [
+                ...segs,
+                { type: 'phase', label: event.phase_error, error: event.error },
+              ])
+            }
+
+            if (event.plan_ready) {
+              setPlanReady(true)
+              updateSegments((segs) => [
+                ...segs,
+                { type: 'plan_ready', hasChanges: !!event.has_changes },
+              ])
               fetchFiles()
             }
 
             if (event.error) {
               setChatLog((prev) => {
                 const updated = [...prev]
-                updated[assistantIdx] = { role: 'error', text: event.error }
+                updated[assistantIdx] = {
+                  role: 'error',
+                  segments: [{ type: 'text', content: event.error }],
+                }
                 return updated
               })
             }
 
             if (event.done) {
-              // Update history for future requests
               setHistory((prev) => [
                 ...prev,
                 { role: 'user', content: userMsg },
-                { role: 'assistant', content: accumulated },
+                { role: 'assistant', content: contentAccumulated },
               ])
             }
           } catch {
@@ -175,7 +306,10 @@ function App() {
     } catch {
       setChatLog((prev) => {
         const updated = [...prev]
-        updated[assistantIdx] = { role: 'error', text: 'Failed to reach backend' }
+        updated[assistantIdx] = {
+          role: 'error',
+          segments: [{ type: 'text', content: 'Failed to reach backend' }],
+        }
         return updated
       })
     }
@@ -226,33 +360,33 @@ function App() {
     setDeployStatus(newStatus)
     const url = `/api/terraform/${endpoint}`
     console.log('Fetching:', url)
-    
+
     try {
       const response = await fetch(url, {
         method: 'POST',
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
-      
+
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
-      
+
       if (!reader) {
         throw new Error('No response body')
       }
-      
+
       let buffer = ''
-      
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        
+
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
-        
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
@@ -270,16 +404,13 @@ function App() {
                 setDeployStatus('success')
                 return Promise.resolve(data)
               }
-              if (data.has_changes !== undefined) {
-                setPlanHasChanges(data.has_changes)
-              }
             } catch {
               // ignore parse errors
             }
           }
         }
       }
-      
+
       setDeployStatus('success')
       return Promise.resolve({})
     } catch (err: any) {
@@ -294,22 +425,18 @@ function App() {
   const handleDeploy = async () => {
     setDeployOutput([])
     setDeployError(null)
-    setPlanHasChanges(null)
-    setDeployStatus('init')
-    
+    setPlanReady(false)
+
     try {
+      // Init is safe and idempotent — ensures providers are ready
       await runDeployStep('init', 'init')
-      const planResult = await runDeployStep('plan', 'plan')
-      
-      if (planResult?.has_changes === false) {
-        setDeployOutput(prev => [...prev, 'No changes to apply.'])
-        return
-      }
-      
+      // Apply — this is the only step that affects real infrastructure
       await runDeployStep('apply', 'apply')
     } catch (err: any) {
-      // error already handled in runDeployStep
       console.error('Deployment failed:', err)
+      // Auto-send error to chat so the LLM can fix the terraform files
+      const errorMsg = err.message || 'Unknown deployment error'
+      sendMessage(`Terraform apply failed with the following error:\n${errorMsg}\n\nPlease fix the terraform configuration.`)
     }
   }
 
@@ -317,7 +444,6 @@ function App() {
     setDeployStatus('idle')
     setDeployOutput([])
     setDeployError(null)
-    setPlanHasChanges(null)
   }
 
   return (
@@ -330,7 +456,15 @@ function App() {
           <div className="chat-log">
             {chatLog.map((msg, i) => (
               <div key={i} className={`chat-msg ${msg.role}`}>
-                <strong>{msg.role}:</strong> {msg.text}
+                <div className="chat-msg-role">{msg.role}</div>
+                <div className="chat-msg-body">
+                  {msg.segments.map((seg, j) => (
+                    <ChatSegment key={j} segment={seg} />
+                  ))}
+                  {sending && i === chatLog.length - 1 && msg.role === 'assistant' && (
+                    <span className="chat-spinner" />
+                  )}
+                </div>
               </div>
             ))}
             <div ref={chatEndRef} />
@@ -343,7 +477,7 @@ function App() {
               placeholder="Describe your infrastructure..."
               disabled={sending}
             />
-            <button onClick={sendMessage} disabled={sending}>
+            <button onClick={() => sendMessage()} disabled={sending}>
               {sending ? '...' : 'Send'}
             </button>
           </div>
@@ -439,12 +573,11 @@ function App() {
               <div className="deploy-panel">
                 <div className="deploy-header">
                   <div className={`deploy-status status-${deployStatus}`}>
-                    {deployStatus === 'idle' && 'Ready to deploy'}
+                    {deployStatus === 'idle' && (planReady ? 'Plan ready — click Deploy to apply' : 'Ready to deploy')}
                     {deployStatus === 'init' && 'Running terraform init...'}
-                    {deployStatus === 'plan' && 'Running terraform plan...'}
                     {deployStatus === 'apply' && 'Running terraform apply...'}
                     {deployStatus === 'success' && 'Deployment successful!'}
-                    {deployStatus === 'error' && 'Deployment failed'}
+                    {deployStatus === 'error' && 'Deployment failed — sending error to AI...'}
                   </div>
                   <div className="deploy-actions">
                     {deployStatus === 'idle' && (
@@ -462,7 +595,7 @@ function App() {
                         Deploy Again
                       </button>
                     )}
-                    {(deployStatus === 'init' || deployStatus === 'plan' || deployStatus === 'apply') && (
+                    {(deployStatus === 'init' || deployStatus === 'apply') && (
                       <button className="deploy-btn" disabled>
                         Running...
                       </button>
@@ -478,7 +611,7 @@ function App() {
 
                 <div className="deploy-output">
                   {deployOutput.length === 0 && deployStatus === 'idle' && (
-                    <p className="empty-state">Click Deploy to run terraform init, plan, and apply.</p>
+                    <p className="empty-state">{planReady ? 'Plan ready. Click Deploy to apply changes.' : 'Chat with the AI to generate terraform files. Plan runs automatically.'}</p>
                   )}
                   {deployOutput.map((line, i) => (
                     <div key={i} className={`output-line ${line.includes('[ERROR]') ? 'error' : ''}`}>{line}</div>

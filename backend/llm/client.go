@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+// StreamCallbacks receives streaming deltas as they arrive.
+type StreamCallbacks struct {
+	OnContent   func(text string)
+	OnReasoning func(text string)
+}
+
 // Config holds the OpenAI-compatible API configuration.
 type Config struct {
 	BaseURL   string // e.g. https://openrouter.ai/api/v1
@@ -37,6 +43,7 @@ func NewClient(cfg Config) *Client {
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content,omitempty"`
+	Reasoning  string     `json:"reasoning,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
@@ -86,8 +93,9 @@ type chatResponse struct {
 type streamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string     `json:"content,omitempty"`
-			ToolCalls []toolDelta `json:"tool_calls,omitempty"`
+			Content          string      `json:"content,omitempty"`
+			ReasoningContent string      `json:"reasoning_content,omitempty"`
+			ToolCalls        []toolDelta `json:"tool_calls,omitempty"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
@@ -103,9 +111,10 @@ type toolDelta struct {
 	} `json:"function"`
 }
 
-// ChatStream sends a streaming chat completion request. Content deltas are
-// written to out as they arrive. Returns the full accumulated assistant message.
-func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Tool, out io.Writer) (*Message, error) {
+// ChatStream sends a streaming chat completion request. Content and reasoning
+// deltas are forwarded via callbacks as they arrive. Returns the full
+// accumulated assistant message.
+func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Tool, cb *StreamCallbacks) (*Message, error) {
 	if !c.cfg.Streaming {
 		return c.Chat(ctx, messages, tools)
 	}
@@ -141,6 +150,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 	// Accumulate the full message
 	result := &Message{Role: "assistant"}
 	var contentBuf strings.Builder
+	var reasoningBuf strings.Builder
 	toolCallMap := make(map[int]*ToolCall) // index -> accumulated tool call
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -165,11 +175,19 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 
 		delta := chunk.Choices[0].Delta
 
+		// Stream reasoning deltas
+		if delta.ReasoningContent != "" {
+			reasoningBuf.WriteString(delta.ReasoningContent)
+			if cb != nil && cb.OnReasoning != nil {
+				cb.OnReasoning(delta.ReasoningContent)
+			}
+		}
+
 		// Stream content deltas
 		if delta.Content != "" {
 			contentBuf.WriteString(delta.Content)
-			if out != nil {
-				out.Write([]byte(delta.Content))
+			if cb != nil && cb.OnContent != nil {
+				cb.OnContent(delta.Content)
 			}
 		}
 
@@ -197,6 +215,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 	}
 
 	result.Content = contentBuf.String()
+	result.Reasoning = reasoningBuf.String()
 
 	// Collect tool calls in order
 	for i := 0; i < len(toolCallMap); i++ {
