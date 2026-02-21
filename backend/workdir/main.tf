@@ -12,9 +12,10 @@ provider "aws" {
 }
 
 # ---- VARIABLES ----
-variable "terraform-s3-bucket-test" {
+variable "bucket_name" {
   description = "S3 bucket name"
   type        = string
+  default     = "cloud-comfort-tf-unique-123"
 }
 
 variable "environment" {

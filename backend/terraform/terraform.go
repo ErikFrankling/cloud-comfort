@@ -114,7 +114,7 @@ func (s *Service) Plan(ctx context.Context, output io.Writer) (*tfjson.Plan, boo
 
 	planFile := filepath.Join(s.workDir, "plan.tfplan")
 
-	hasChanges, err := tf.Plan(ctx, tfexec.Out(planFile))
+	hasChanges, err := tf.Plan(ctx, tfexec.Out(planFile), tfexec.Lock(false))
 	if err != nil {
 		return nil, false, fmt.Errorf("terraform plan: %w", err)
 	}
@@ -138,7 +138,7 @@ func (s *Service) Apply(ctx context.Context, output io.Writer) error {
 		return err
 	}
 
-	if err := tf.Apply(ctx); err != nil {
+	if err := tf.Apply(ctx, tfexec.Lock(false)); err != nil {
 		return fmt.Errorf("terraform apply: %w", err)
 	}
 

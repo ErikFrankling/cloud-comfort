@@ -2,13 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 type FileEntry = { name: string; size: number }
 type SelectedFile = { name: string; content: string } | null
+type DeployStatus = 'idle' | 'init' | 'plan' | 'apply' | 'success' | 'error'
 
 function App() {
   const [message, setMessage] = useState('')
   const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([])
-  const [activeTab, setActiveTab] = useState<'graph' | 'files'>('graph')
+  const [activeTab, setActiveTab] = useState<'graph' | 'files' | 'deploy'>('deploy')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null)
+  const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
+  const [deployOutput, setDeployOutput] = useState<string[]>([])
+  const [deployError, setDeployError] = useState<string | null>(null)
+  const [planHasChanges, setPlanHasChanges] = useState<boolean | null>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
 
   const fetchFiles = useCallback(async () => {
@@ -87,6 +92,104 @@ function App() {
     if (uploadRef.current) uploadRef.current.value = ''
   }
 
+  const runDeployStep = async (endpoint: string, newStatus: DeployStatus): Promise<any> => {
+    setDeployStatus(newStatus)
+    const url = `/api/terraform/${endpoint}`
+    console.log('Fetching:', url)
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      
+      if (!reader) {
+        throw new Error('No response body')
+      }
+      
+      let buffer = ''
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.line) {
+                setDeployOutput(prev => [...prev, data.line])
+              }
+              if (data.error) {
+                setDeployError(data.error)
+                setDeployOutput(prev => [...prev, `[ERROR] ${data.error}`])
+                setDeployStatus('error')
+                return Promise.reject(new Error(data.error))
+              }
+              if (data.done) {
+                setDeployStatus('success')
+                return Promise.resolve(data)
+              }
+              if (data.has_changes !== undefined) {
+                setPlanHasChanges(data.has_changes)
+              }
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
+      }
+      
+      setDeployStatus('success')
+      return Promise.resolve({})
+    } catch (err: any) {
+      const errorMsg = err.message || `Failed to connect to ${endpoint}`
+      setDeployError(errorMsg)
+      setDeployOutput(prev => [...prev, `[ERROR] ${errorMsg}`])
+      setDeployStatus('error')
+      return Promise.reject(err)
+    }
+  }
+
+  const handleDeploy = async () => {
+    setDeployOutput([])
+    setDeployError(null)
+    setPlanHasChanges(null)
+    setDeployStatus('init')
+    
+    try {
+      await runDeployStep('init', 'init')
+      const planResult = await runDeployStep('plan', 'plan')
+      
+      if (planResult?.has_changes === false) {
+        setDeployOutput(prev => [...prev, 'No changes to apply.'])
+        return
+      }
+      
+      await runDeployStep('apply', 'apply')
+    } catch (err: any) {
+      // error already handled in runDeployStep
+      console.error('Deployment failed:', err)
+    }
+  }
+
+  const handleReset = () => {
+    setDeployStatus('idle')
+    setDeployOutput([])
+    setDeployError(null)
+    setPlanHasChanges(null)
+  }
+
   return (
     <div className="app">
       <header>
@@ -125,6 +228,12 @@ function App() {
               onClick={() => setActiveTab('files')}
             >
               Files
+            </button>
+            <button
+              className={activeTab === 'deploy' ? 'active' : ''}
+              onClick={() => setActiveTab('deploy')}
+            >
+              Deploy
             </button>
           </div>
 
@@ -177,6 +286,58 @@ function App() {
                       <p className="empty-state">Select a file to view its contents.</p>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'deploy' && (
+              <div className="deploy-panel">
+                <div className="deploy-header">
+                  <div className={`deploy-status status-${deployStatus}`}>
+                    {deployStatus === 'idle' && 'Ready to deploy'}
+                    {deployStatus === 'init' && 'Running terraform init...'}
+                    {deployStatus === 'plan' && 'Running terraform plan...'}
+                    {deployStatus === 'apply' && 'Running terraform apply...'}
+                    {deployStatus === 'success' && 'Deployment successful!'}
+                    {deployStatus === 'error' && 'Deployment failed'}
+                  </div>
+                  <div className="deploy-actions">
+                    {deployStatus === 'idle' && (
+                      <button className="deploy-btn" onClick={handleDeploy}>
+                        Deploy
+                      </button>
+                    )}
+                    {deployStatus === 'success' && (
+                      <button className="deploy-btn" onClick={handleReset}>
+                        Reset
+                      </button>
+                    )}
+                    {(deployStatus === 'error' || deployStatus === 'success') && (
+                      <button className="deploy-btn" onClick={handleDeploy}>
+                        Deploy Again
+                      </button>
+                    )}
+                    {(deployStatus === 'init' || deployStatus === 'plan' || deployStatus === 'apply') && (
+                      <button className="deploy-btn" disabled>
+                        Running...
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {deployError && (
+                  <div className="deploy-error">
+                    <strong>Error:</strong> {deployError}
+                  </div>
+                )}
+
+                <div className="deploy-output">
+                  {deployOutput.length === 0 && deployStatus === 'idle' && (
+                    <p className="empty-state">Click Deploy to run terraform init, plan, and apply.</p>
+                  )}
+                  {deployOutput.map((line, i) => (
+                    <div key={i} className={`output-line ${line.includes('[ERROR]') ? 'error' : ''}`}>{line}</div>
+                  ))}
                 </div>
               </div>
             )}

@@ -9,6 +9,14 @@ import (
 	"cloud-comfort/backend/terraform"
 )
 
+func HandlePreflight(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // sseWriter adapts an http.ResponseWriter + http.Flusher into an io.Writer
 // that sends each written chunk as a Server-Sent Event.
 type sseWriter struct {
@@ -39,6 +47,8 @@ func setupSSE(w http.ResponseWriter) (*sseWriter, bool) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	flusher.Flush()
 
 	return &sseWriter{w: w, f: flusher}, true

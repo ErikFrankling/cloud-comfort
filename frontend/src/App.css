@@ -258,3 +258,97 @@ header h1 {
   color: #666;
   font-size: 0.85rem;
 }
+
+/* --- Deploy tab --- */
+
+.deploy-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.deploy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #2a2d35;
+  background: #1a1d27;
+}
+
+.deploy-status {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.deploy-status.status-idle {
+  color: #888;
+}
+
+.deploy-status.status-init,
+.deploy-status.status-plan,
+.deploy-status.status-apply {
+  color: #8ab4f8;
+}
+
+.deploy-status.status-success {
+  color: #81c784;
+}
+
+.deploy-status.status-error {
+  color: #ef5350;
+}
+
+.deploy-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.deploy-btn {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #4caf50;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.deploy-btn:hover:not(:disabled) {
+  background: #66bb6a;
+}
+
+.deploy-btn:disabled {
+  background: #555;
+  cursor: not-allowed;
+}
+
+.deploy-error {
+  padding: 1rem;
+  background: #2d1a1a;
+  color: #ef5350;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #3d2626;
+}
+
+.deploy-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  font-family: monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background: #0d0f14;
+}
+
+.output-line {
+  color: #aaa;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.output-line.error {
+  color: #ef5350;
+}

@@ -28,6 +28,11 @@ func main() {
 	mux.HandleFunc("POST /api/terraform/init", handlers.HandleInit(tfSvc))
 	mux.HandleFunc("POST /api/terraform/plan", handlers.HandlePlan(tfSvc))
 	mux.HandleFunc("POST /api/terraform/apply", handlers.HandleApply(tfSvc))
+	
+	// CORS preflight for terraform endpoints
+	mux.HandleFunc("OPTIONS /api/terraform/init", handlers.HandlePreflight)
+	mux.HandleFunc("OPTIONS /api/terraform/plan", handlers.HandlePreflight)
+	mux.HandleFunc("OPTIONS /api/terraform/apply", handlers.HandlePreflight)
 
 	// File management
 	absWorkDir := tfSvc.WorkDir()
@@ -47,7 +52,7 @@ func main() {
 
 	// CORS for frontend dev server
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedOrigins:   []string{"http://localhost:5173", "http://127.0.0.1:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type"},
 		AllowCredentials: true,
