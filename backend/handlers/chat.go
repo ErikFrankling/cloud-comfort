@@ -14,6 +14,8 @@ import (
 	"cloud-comfort/backend/terraform"
 )
 
+const maxLoopIterations = 5
+
 type chatRequest struct {
 	Message string        `json:"message"`
 	History []llm.Message `json:"history"`
@@ -95,6 +97,11 @@ After you write files, the following pipeline runs automatically:
 
 If ANY step fails, you will receive the error output. Fix the files and try again.
 The user must manually approve terraform apply (deployment). You cannot run apply.
+
+If a plan error cannot be fixed by editing .tf files (e.g. IAM permission denied,
+missing provider credentials, resource quota limits), do NOT retry. Instead, explain
+the root cause to the user and what they need to do manually (e.g. attach an IAM
+policy, set an env var, request a quota increase). Then stop making tool calls.
 
 ## Guidelines
 - Always explain what you're doing before making changes.
@@ -256,7 +263,8 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 		var loopMessages []llm.Message
 
 		// Tool call loop — keep going until the LLM responds with just content
-		for {
+		hitLimit := true
+		for i := 0; i < maxLoopIterations; i++ {
 			// Rebuild system prompt each iteration so the LLM always sees
 			// the current file contents, even after write_file calls.
 			systemPrompt := buildSystemPrompt(workDir)
@@ -275,6 +283,7 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 
 			// If no tool calls, we're done
 			if len(assistantMsg.ToolCalls) == 0 {
+				hitLimit = false
 				break
 			}
 
@@ -366,6 +375,11 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 			// Continue loop — LLM will summarize the plan for the user
 		}
 
+		if hitLimit {
+			sendSSEEvent(w, flusher, map[string]any{
+				"error": fmt.Sprintf("Stopped after %d fix attempts. The error likely requires manual intervention (e.g. IAM permissions, provider credentials, resource quotas).", maxLoopIterations),
+			})
+		}
 		sendSSEEvent(w, flusher, map[string]any{"done": true})
 	}
 }
