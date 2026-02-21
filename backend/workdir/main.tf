@@ -1,132 +1,87 @@
-locals {
-  common_tags = {
-    Environment = var.environment
-    ManagedBy   = "Terraform"
+# S3 bucket for website content
+resource "aws_s3_bucket" "website" {
+  bucket = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}"
+}
+
+# Block public access - CloudFront will access via OAC
+resource "aws_s3_bucket_public_access_block" "website" {
+  bucket = aws_s3_bucket.website.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# CloudFront Origin Access Control
+resource "aws_cloudfront_origin_access_control" "website" {
+  name                              = "${var.project_name}-${var.environment}-oac"
+  description                       = "OAC for S3 origin"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# Bucket policy allowing CloudFront access
+resource "aws_s3_bucket_policy" "website" {
+  bucket = aws_s3_bucket.website.id
+  policy = data.aws_iam_policy_document.website.json
+}
+
+data "aws_iam_policy_document" "website" {
+  statement {
+    sid    = "AllowCloudFrontAccess"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.website.arn}/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudfront_distribution.website.arn]
+    }
   }
 }
 
-# VPC
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+# CloudFront distribution
+resource "aws_cloudfront_distribution" "website" {
+  enabled             = true
+  is_ipv6_enabled     = true
+  default_root_object = "index.html"
+  price_class         = "PriceClass_100" # North America and Europe only (cheapest)
 
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-vpc"
-  })
-}
-
-# Internet Gateway
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-igw"
-  })
-}
-
-# Public Subnets
-resource "aws_subnet" "public" {
-  count                   = length(var.public_subnet_cidrs)
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = var.availability_zones[count.index]
-  map_public_ip_on_launch = true
-
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-public-subnet-${count.index + 1}"
-    Type = "Public"
-  })
-}
-
-# Private Subnets
-resource "aws_subnet" "private" {
-  count             = length(var.private_subnet_cidrs)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = var.availability_zones[count.index]
-
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-private-subnet-${count.index + 1}"
-    Type = "Private"
-  })
-}
-
-# Public Route Table
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+  origin {
+    domain_name              = aws_s3_bucket.website.bucket_regional_domain_name
+    origin_id                = "S3-${aws_s3_bucket.website.bucket}"
+    origin_access_control_id = aws_cloudfront_origin_access_control.website.id
   }
 
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-public-rt"
-  })
-}
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-${aws_s3_bucket.website.bucket}"
+    viewer_protocol_policy = "redirect-to-https"
 
-# Public Route Table Associations
-resource "aws_route_table_association" "public" {
-  count          = length(aws_subnet.public)
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
-}
-
-# Private Route Table
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.main.id
-
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-private-rt"
-  })
-}
-
-# Private Route Table Associations
-resource "aws_route_table_association" "private" {
-  count          = length(aws_subnet.private)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
-}
-
-# Security Group - Allow SSH and HTTP/HTTPS
-resource "aws_security_group" "allow_common" {
-  name_prefix = "${var.environment}-common-sg"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_optimized.id
   }
 
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
   }
 
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  viewer_certificate {
+    cloudfront_default_certificate = true
   }
 
-  egress {
-    description = "Allow all outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  tags = var.tags
+}
 
-  tags = merge(local.common_tags, {
-    Name = "${var.environment}-common-sg"
-  })
+# Use AWS managed caching optimized policy
+data "aws_cloudfront_cache_policy" "caching_optimized" {
+  name = "Managed-CachingOptimized"
 }

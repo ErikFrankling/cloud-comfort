@@ -285,6 +285,24 @@ header h1 {
   flex-shrink: 0;
 }
 
+/* --- Diagram download button --- */
+
+.diagram-download-btn {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  border: 1px solid #3a3d4a;
+  border-radius: 6px;
+  background: #13151e;
+  color: #8ab4f8;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.diagram-download-btn:hover {
+  background: #1e2233;
+  border-color: #8ab4f8;
+}
+
 /* --- Edge shimmer on selection --- */
 
 .edge-shimmer .react-flow__edge-path {

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import dagre from '@dagrejs/dagre'
 import {
   ReactFlow,
   Background,
   Controls,
+  Panel,
   Node,
   Edge,
   Position,
@@ -14,6 +15,7 @@ import {
   useEdgesState,
   useReactFlow,
 } from '@xyflow/react'
+import { toPng } from 'html-to-image'
 import '@xyflow/react/dist/style.css'
 import {
   ResourceAmazonVPCInternetGateway,
@@ -571,6 +573,21 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const baseEdges = useRef<Edge[]>([])
+  const flowRef = useRef<HTMLDivElement>(null)
+
+  const downloadPng = useCallback(() => {
+    if (!flowRef.current) return
+    toPng(flowRef.current, {
+      backgroundColor: '#0d0f14',
+      width: flowRef.current.offsetWidth,
+      height: flowRef.current.offsetHeight,
+    }).then(dataUrl => {
+      const a = document.createElement('a')
+      a.setAttribute('download', 'infrastructure.png')
+      a.setAttribute('href', dataUrl)
+      a.click()
+    })
+  }, [])
 
   useEffect(() => {
     setSelectedId(null)
@@ -648,7 +665,7 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
           ))}
         </div>
       )}
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div ref={flowRef} style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
           nodes={rfNodes}
           edges={rfEdges}
@@ -665,6 +682,11 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
         >
           <Background color="#1e2330" variant={BackgroundVariant.Dots} gap={20} />
           <Controls style={{ background: '#1a1d27', borderColor: '#2a2d35' }} />
+          <Panel position="top-right">
+            <button className="diagram-download-btn" onClick={downloadPng} title="Download as PNG">
+              ↓ PNG
+            </button>
+          </Panel>
         </ReactFlow>
       </div>
     </div>
