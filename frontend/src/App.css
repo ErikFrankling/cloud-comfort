@@ -26,11 +26,15 @@ header h1 {
   font-weight: 600;
 }
 
+/* --- Panels --- */
+
 .panels {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
+
+/* --- Chat Panel (left) --- */
 
 .chat-panel {
   width: 400px;
@@ -98,10 +102,159 @@ header h1 {
   background: #aecbfa;
 }
 
-.graph-panel {
+/* --- Right Panel (tabs) --- */
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #2a2d35;
+}
+
+.tab-bar button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-bar button:hover {
+  color: #bbb;
+}
+
+.tab-bar button.active {
+  color: #8ab4f8;
+  border-bottom-color: #8ab4f8;
+}
+
+.tab-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Graph tab --- */
+
+.graph-placeholder {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #666;
+}
+
+/* --- Files tab --- */
+
+.files-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid #2a2d35;
+}
+
+.file-actions button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #2a2d35;
+  border-radius: 6px;
+  background: #1a1d27;
+  color: #e0e0e0;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.file-actions button:hover {
+  border-color: #8ab4f8;
+  color: #8ab4f8;
+}
+
+.files-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.files-list {
+  width: 220px;
+  overflow-y: auto;
+  border-right: 1px solid #2a2d35;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #1a1d27;
+  transition: background 0.1s;
+}
+
+.file-item:hover {
+  background: #1a1d27;
+}
+
+.file-item.active {
+  background: #1e2433;
+  border-left: 3px solid #8ab4f8;
+}
+
+.file-name {
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.file-size {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.file-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-content-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: monospace;
+  border-bottom: 1px solid #2a2d35;
+  color: #8ab4f8;
+}
+
+.file-content pre {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  font-family: monospace;
+  white-space: pre;
+  color: #c8e6c9;
+}
+
+.empty-state {
+  padding: 1rem;
+  color: #666;
+  font-size: 0.85rem;
 }
