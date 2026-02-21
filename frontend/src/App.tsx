@@ -12,19 +12,16 @@ type LLMHistory = { role: string; content: string }[]
 
 function App() {
   const [message, setMessage] = useState('')
-  const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([])
-  const [activeTab, setActiveTab] = useState<'graph' | 'files' | 'deploy'>('deploy')
-  const [message, setMessage] = useState('')
   const [chatLog, setChatLog] = useState<ChatMsg[]>([])
   const [history, setHistory] = useState<LLMHistory>([])
   const [sending, setSending] = useState(false)
-  const [activeTab, setActiveTab] = useState<'graph' | 'files'>('graph')
+  const [activeTab, setActiveTab] = useState<'graph' | 'files' | 'deploy'>('deploy')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null)
   const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
   const [deployOutput, setDeployOutput] = useState<string[]>([])
   const [deployError, setDeployError] = useState<string | null>(null)
-  const [planHasChanges, setPlanHasChanges] = useState<boolean | null>(null)
+  const [, setPlanHasChanges] = useState<boolean | null>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 

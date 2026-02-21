@@ -37,13 +37,6 @@ resource "aws_s3_bucket" "second" {
   tags = var.tags
 }
 
-# ---- VARIABLES ----
-variable "bucket_name" {
-  description = "S3 bucket name"
-  type        = string
-  default     = "cloud-comfort-tf-unique-123"
-}
-
 resource "aws_s3_bucket_versioning" "second" {
   bucket = aws_s3_bucket.second.id
 
@@ -54,6 +47,30 @@ resource "aws_s3_bucket_versioning" "second" {
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "second" {
   bucket = aws_s3_bucket.second.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket" "third" {
+  bucket = var.third_bucket_name
+
+  tags = var.tags
+}
+
+resource "aws_s3_bucket_versioning" "third" {
+  bucket = aws_s3_bucket.third.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "third" {
+  bucket = aws_s3_bucket.third.id
 
   rule {
     apply_server_side_encryption_by_default {
