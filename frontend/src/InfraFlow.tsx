@@ -15,27 +15,49 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
-  SiAmazons3,
-  SiAmazonec2,
-  SiAwslambda,
-  SiAmazonrds,
-  SiAmazondynamodb,
-  SiAmazonecs,
-  SiAmazoneks,
-  SiAmazonelasticache,
-  SiAmazoniam,
-  SiAmazoncloudwatch,
-  SiAmazoncognito,
-  SiAmazonapigateway,
-  SiAmazonsqs,
-  SiAmazonredshift,
-  SiAmazonroute53,
-  SiAwselasticloadbalancing,
-  SiAwsfargate,
-  SiAwssecretsmanager,
-  SiAmazonwebservices,
-} from 'react-icons/si'
-import type { IconType } from 'react-icons'
+  ResourceAmazonVPCInternetGateway,
+  ResourceAmazonVPCNATGateway,
+  ResourceAmazonVPCRouter,
+  ResourceAmazonVPCNetworkAccessControlList,
+  ResourceAmazonVPCElasticNetworkInterface,
+  ResourceAmazonVPCEndpoints,
+  ResourceAmazonVPCPeeringConnection,
+  ResourceAmazonVPCCustomerGateway,
+  ResourceAmazonVPCVPNGateway,
+  ResourceAmazonVPCVirtualprivatecloudVPC,
+  ResourceAmazonEC2Instance,
+  ResourceAmazonEC2ElasticIPAddress,
+  ResourceAmazonEC2AutoScaling,
+  ResourceAmazonSimpleStorageServiceBucket,
+  ResourceAmazonDynamoDBTable,
+  ResourceAmazonElastiCacheCacheNode,
+  ResourceAmazonCloudWatchLogs,
+  ResourceAmazonCloudWatchAlarm,
+  ResourceAmazonSimpleQueueServiceQueue,
+  ResourceElasticLoadBalancingApplicationLoadBalancer,
+  ResourceElasticLoadBalancingNetworkLoadBalancer,
+  ResourceAWSLambdaLambdaFunction,
+  ArchitectureGroupVirtualprivatecloudVPC,
+  ArchitectureGroupPublicsubnet,
+  ArchitectureServiceAmazonRDS,
+  ArchitectureServiceAmazonEC2,
+  ArchitectureServiceAWSLambda,
+  ArchitectureServiceAmazonECSAnywhere,
+  ArchitectureServiceAmazonEKSCloud,
+  ArchitectureServiceAWSIAMIdentityCenter,
+  ArchitectureServiceAWSSecretsManager,
+  ArchitectureServiceAWSNetworkFirewall,
+  ArchitectureServiceAmazonCognito,
+  ArchitectureServiceAmazonAPIGateway,
+  ArchitectureServiceAmazonRoute53,
+  ArchitectureServiceAmazonRedshift,
+  ArchitectureServiceElasticLoadBalancing,
+  ArchitectureServiceAmazonSimpleQueueService,
+  ArchitectureServiceAmazonEC2AutoScaling,
+} from 'aws-react-icons'
+import type { FC } from 'react'
+
+type AwsIcon = FC<{ size?: number | string; [k: string]: any }>
 
 export interface ApiNode {
   id: string
@@ -46,71 +68,101 @@ export interface ApiNode {
   parent?: string
 }
 
-const resourceIcons: Record<string, IconType> = {
-  aws_s3_bucket:                               SiAmazons3,
-  aws_s3_bucket_versioning:                    SiAmazons3,
-  aws_s3_bucket_policy:                        SiAmazons3,
-  aws_s3_bucket_public_access_block:           SiAmazons3,
-  aws_s3_bucket_server_side_encryption_configuration: SiAmazons3,
-  aws_instance:                                SiAmazonec2,
-  aws_launch_template:                         SiAmazonec2,
-  aws_launch_configuration:                    SiAmazonec2,
-  aws_autoscaling_group:                       SiAmazonec2,
-  aws_lambda_function:                         SiAwslambda,
-  aws_lambda_permission:                       SiAwslambda,
-  aws_db_instance:                             SiAmazonrds,
-  aws_db_subnet_group:                         SiAmazonrds,
-  aws_rds_cluster:                             SiAmazonrds,
-  aws_dynamodb_table:                          SiAmazondynamodb,
-  aws_ecs_cluster:                             SiAmazonecs,
-  aws_ecs_service:                             SiAmazonecs,
-  aws_ecs_task_definition:                     SiAmazonecs,
-  aws_eks_cluster:                             SiAmazoneks,
-  aws_eks_node_group:                          SiAmazoneks,
-  aws_elasticache_cluster:                     SiAmazonelasticache,
-  aws_elasticache_replication_group:           SiAmazonelasticache,
-  aws_iam_role:                                SiAmazoniam,
-  aws_iam_policy:                              SiAmazoniam,
-  aws_iam_user:                                SiAmazoniam,
-  aws_iam_group:                               SiAmazoniam,
-  aws_iam_instance_profile:                    SiAmazoniam,
-  aws_cloudwatch_log_group:                    SiAmazoncloudwatch,
-  aws_cloudwatch_metric_alarm:                 SiAmazoncloudwatch,
-  aws_cognito_user_pool:                       SiAmazoncognito,
-  aws_cognito_identity_pool:                   SiAmazoncognito,
-  aws_api_gateway_rest_api:                    SiAmazonapigateway,
-  aws_api_gateway_v2_api:                      SiAmazonapigateway,
-  aws_sqs_queue:                               SiAmazonsqs,
-  aws_redshift_cluster:                        SiAmazonredshift,
-  aws_route53_zone:                            SiAmazonroute53,
-  aws_route53_record:                          SiAmazonroute53,
-  aws_lb:                                      SiAwselasticloadbalancing,
-  aws_alb:                                     SiAwselasticloadbalancing,
-  aws_lb_listener:                             SiAwselasticloadbalancing,
-  aws_lb_target_group:                         SiAwselasticloadbalancing,
-  aws_fargate_profile:                         SiAwsfargate,
-  aws_secretsmanager_secret:                   SiAwssecretsmanager,
+const resourceIconMap: Record<string, AwsIcon> = {
+  // Networking — VPC components
+  aws_internet_gateway:             ResourceAmazonVPCInternetGateway as AwsIcon,
+  aws_nat_gateway:                  ResourceAmazonVPCNATGateway as AwsIcon,
+  aws_route_table:                  ResourceAmazonVPCRouter as AwsIcon,
+  aws_route_table_association:      ResourceAmazonVPCRouter as AwsIcon,
+  aws_network_acl:                  ResourceAmazonVPCNetworkAccessControlList as AwsIcon,
+  aws_network_interface:            ResourceAmazonVPCElasticNetworkInterface as AwsIcon,
+  aws_vpc_endpoint:                 ResourceAmazonVPCEndpoints as AwsIcon,
+  aws_vpc_peering_connection:       ResourceAmazonVPCPeeringConnection as AwsIcon,
+  aws_customer_gateway:             ResourceAmazonVPCCustomerGateway as AwsIcon,
+  aws_vpn_gateway:                  ResourceAmazonVPCVPNGateway as AwsIcon,
+  aws_eip:                          ResourceAmazonEC2ElasticIPAddress as AwsIcon,
+  // Compute
+  aws_instance:                     ResourceAmazonEC2Instance as AwsIcon,
+  aws_launch_template:              ArchitectureServiceAmazonEC2 as AwsIcon,
+  aws_launch_configuration:         ArchitectureServiceAmazonEC2 as AwsIcon,
+  aws_autoscaling_group:            ResourceAmazonEC2AutoScaling as AwsIcon,
+  aws_lambda_function:              ResourceAWSLambdaLambdaFunction as AwsIcon,
+  aws_lambda_permission:            ArchitectureServiceAWSLambda as AwsIcon,
+  aws_ecs_cluster:                  ArchitectureServiceAmazonECSAnywhere as AwsIcon,
+  aws_ecs_service:                  ArchitectureServiceAmazonECSAnywhere as AwsIcon,
+  aws_ecs_task_definition:          ArchitectureServiceAmazonECSAnywhere as AwsIcon,
+  aws_eks_cluster:                  ArchitectureServiceAmazonEKSCloud as AwsIcon,
+  aws_eks_node_group:               ArchitectureServiceAmazonEKSCloud as AwsIcon,
+  // Storage
+  aws_s3_bucket:                    ResourceAmazonSimpleStorageServiceBucket as AwsIcon,
+  aws_s3_bucket_versioning:         ResourceAmazonSimpleStorageServiceBucket as AwsIcon,
+  aws_s3_bucket_policy:             ResourceAmazonSimpleStorageServiceBucket as AwsIcon,
+  aws_s3_bucket_public_access_block: ResourceAmazonSimpleStorageServiceBucket as AwsIcon,
+  aws_s3_bucket_server_side_encryption_configuration: ResourceAmazonSimpleStorageServiceBucket as AwsIcon,
+  // Database
+  aws_db_instance:                  ArchitectureServiceAmazonRDS as AwsIcon,
+  aws_db_subnet_group:              ArchitectureServiceAmazonRDS as AwsIcon,
+  aws_rds_cluster:                  ArchitectureServiceAmazonRDS as AwsIcon,
+  aws_dynamodb_table:               ResourceAmazonDynamoDBTable as AwsIcon,
+  aws_elasticache_cluster:          ResourceAmazonElastiCacheCacheNode as AwsIcon,
+  aws_elasticache_replication_group: ResourceAmazonElastiCacheCacheNode as AwsIcon,
+  aws_redshift_cluster:             ArchitectureServiceAmazonRedshift as AwsIcon,
+  // Security
+  aws_security_group:               ArchitectureServiceAWSNetworkFirewall as AwsIcon,
+  aws_security_group_rule:          ArchitectureServiceAWSNetworkFirewall as AwsIcon,
+  // IAM
+  aws_iam_role:                     ArchitectureServiceAWSIAMIdentityCenter as AwsIcon,
+  aws_iam_policy:                   ArchitectureServiceAWSIAMIdentityCenter as AwsIcon,
+  aws_iam_user:                     ArchitectureServiceAWSIAMIdentityCenter as AwsIcon,
+  aws_iam_group:                    ArchitectureServiceAWSIAMIdentityCenter as AwsIcon,
+  aws_iam_instance_profile:         ArchitectureServiceAWSIAMIdentityCenter as AwsIcon,
+  aws_secretsmanager_secret:        ArchitectureServiceAWSSecretsManager as AwsIcon,
+  // Networking — load balancers
+  aws_lb:                           ResourceElasticLoadBalancingApplicationLoadBalancer as AwsIcon,
+  aws_alb:                          ResourceElasticLoadBalancingApplicationLoadBalancer as AwsIcon,
+  aws_lb_listener:                  ArchitectureServiceElasticLoadBalancing as AwsIcon,
+  aws_lb_target_group:              ArchitectureServiceElasticLoadBalancing as AwsIcon,
+  aws_nlb:                          ResourceElasticLoadBalancingNetworkLoadBalancer as AwsIcon,
+  // Messaging / events
+  aws_sqs_queue:                    ResourceAmazonSimpleQueueServiceQueue as AwsIcon,
+  // Monitoring
+  aws_cloudwatch_log_group:         ResourceAmazonCloudWatchLogs as AwsIcon,
+  aws_cloudwatch_metric_alarm:      ResourceAmazonCloudWatchAlarm as AwsIcon,
+  // Other
+  aws_cognito_user_pool:            ArchitectureServiceAmazonCognito as AwsIcon,
+  aws_cognito_identity_pool:        ArchitectureServiceAmazonCognito as AwsIcon,
+  aws_api_gateway_rest_api:         ArchitectureServiceAmazonAPIGateway as AwsIcon,
+  aws_api_gateway_v2_api:           ArchitectureServiceAmazonAPIGateway as AwsIcon,
+  aws_route53_zone:                 ArchitectureServiceAmazonRoute53 as AwsIcon,
+  aws_route53_record:               ArchitectureServiceAmazonRoute53 as AwsIcon,
 }
 
-function getIcon(resourceType?: string): IconType | null {
+function getIcon(resourceType?: string): AwsIcon | null {
   if (!resourceType) return null
-  if (resourceIcons[resourceType]) return resourceIcons[resourceType]
-  if (resourceType.startsWith('aws_s3'))            return SiAmazons3
-  if (resourceType.startsWith('aws_lambda'))        return SiAwslambda
-  if (resourceType.startsWith('aws_ecs'))           return SiAmazonecs
-  if (resourceType.startsWith('aws_eks'))           return SiAmazoneks
-  if (resourceType.startsWith('aws_iam'))           return SiAmazoniam
-  if (resourceType.startsWith('aws_rds') || resourceType.startsWith('aws_db')) return SiAmazonrds
-  if (resourceType.startsWith('aws_dynamodb'))      return SiAmazondynamodb
-  if (resourceType.startsWith('aws_elasticache'))   return SiAmazonelasticache
-  if (resourceType.startsWith('aws_cloudwatch'))    return SiAmazoncloudwatch
-  if (resourceType.startsWith('aws_cognito'))       return SiAmazoncognito
-  if (resourceType.startsWith('aws_api_gateway'))   return SiAmazonapigateway
-  if (resourceType.startsWith('aws_sqs'))           return SiAmazonsqs
-  if (resourceType.startsWith('aws_route53'))       return SiAmazonroute53
-  if (resourceType.startsWith('aws_lb') || resourceType.startsWith('aws_alb') || resourceType.startsWith('aws_elb')) return SiAwselasticloadbalancing
-  if (resourceType.startsWith('aws_secretsmanager')) return SiAwssecretsmanager
-  return SiAmazonwebservices
+  if (resourceIconMap[resourceType]) return resourceIconMap[resourceType]
+  // prefix fallbacks
+  if (resourceType.startsWith('aws_internet_gateway')) return ResourceAmazonVPCInternetGateway as AwsIcon
+  if (resourceType.startsWith('aws_nat_gateway'))      return ResourceAmazonVPCNATGateway as AwsIcon
+  if (resourceType.startsWith('aws_route_table'))      return ResourceAmazonVPCRouter as AwsIcon
+  if (resourceType.startsWith('aws_s3'))               return ResourceAmazonSimpleStorageServiceBucket as AwsIcon
+  if (resourceType.startsWith('aws_lambda'))           return ResourceAWSLambdaLambdaFunction as AwsIcon
+  if (resourceType.startsWith('aws_ecs'))              return ArchitectureServiceAmazonECSAnywhere as AwsIcon
+  if (resourceType.startsWith('aws_eks'))              return ArchitectureServiceAmazonEKSCloud as AwsIcon
+  if (resourceType.startsWith('aws_iam'))              return ArchitectureServiceAWSIAMIdentityCenter as AwsIcon
+  if (resourceType.startsWith('aws_rds') || resourceType.startsWith('aws_db')) return ArchitectureServiceAmazonRDS as AwsIcon
+  if (resourceType.startsWith('aws_dynamodb'))         return ResourceAmazonDynamoDBTable as AwsIcon
+  if (resourceType.startsWith('aws_elasticache'))      return ResourceAmazonElastiCacheCacheNode as AwsIcon
+  if (resourceType.startsWith('aws_cloudwatch'))       return ResourceAmazonCloudWatchLogs as AwsIcon
+  if (resourceType.startsWith('aws_cognito'))          return ArchitectureServiceAmazonCognito as AwsIcon
+  if (resourceType.startsWith('aws_api_gateway'))      return ArchitectureServiceAmazonAPIGateway as AwsIcon
+  if (resourceType.startsWith('aws_sqs'))              return ResourceAmazonSimpleQueueServiceQueue as AwsIcon
+  if (resourceType.startsWith('aws_route53'))          return ArchitectureServiceAmazonRoute53 as AwsIcon
+  if (resourceType.startsWith('aws_lb') || resourceType.startsWith('aws_alb') || resourceType.startsWith('aws_elb')) return ResourceElasticLoadBalancingApplicationLoadBalancer as AwsIcon
+  if (resourceType.startsWith('aws_secretsmanager'))   return ArchitectureServiceAWSSecretsManager as AwsIcon
+  if (resourceType.startsWith('aws_autoscaling'))      return ArchitectureServiceAmazonEC2AutoScaling as AwsIcon
+  if (resourceType.startsWith('aws_instance'))         return ResourceAmazonEC2Instance as AwsIcon
+  if (resourceType.startsWith('aws_vpc'))              return ResourceAmazonVPCEndpoints as AwsIcon
+  return null
 }
 
 export interface ApiEdge {
@@ -171,7 +223,7 @@ function ResourceNode({ data }: NodeProps) {
     >
       <Handle type="target" position={Position.Top}
         style={{ background: s.border, width: 8, height: 8 }} />
-      {Icon && <Icon size={18} color={s.border} />}
+      {Icon && <Icon size={22} />}
       <span>{d.label}</span>
       <Handle type="source" position={Position.Bottom}
         style={{ background: s.border, width: 8, height: 8 }} />
@@ -179,8 +231,15 @@ function ResourceNode({ data }: NodeProps) {
   )
 }
 
+const groupIcons: Record<string, AwsIcon> = {
+  vpc:    ArchitectureGroupVirtualprivatecloudVPC as AwsIcon,
+  subnet: ArchitectureGroupPublicsubnet as AwsIcon,
+}
+
 function GroupNode({ data }: NodeProps) {
-  const cfg = groupCfg[(data as any).category] ?? groupCfg.global
+  const d = data as any
+  const cfg = groupCfg[d.category] ?? groupCfg.global
+  const Icon = groupIcons[d.category] ?? null
   return (
     <div style={{
       width: '100%', height: '100%',
@@ -191,13 +250,16 @@ function GroupNode({ data }: NodeProps) {
       position: 'relative',
       pointerEvents: 'none',
     }}>
-      <span style={{
-        position: 'absolute', top: 9, left: 12,
-        color: cfg.text, fontSize: 12, fontWeight: 700,
-        letterSpacing: '0.01em', pointerEvents: 'none',
+      <div style={{
+        position: 'absolute', top: 6, left: 10,
+        display: 'flex', alignItems: 'center', gap: 5,
+        pointerEvents: 'none',
       }}>
-        {(data as any).label}
-      </span>
+        {Icon && <Icon size={18} />}
+        <span style={{ color: cfg.text, fontSize: 12, fontWeight: 700, letterSpacing: '0.01em' }}>
+          {d.label}
+        </span>
+      </div>
     </div>
   )
 }
@@ -323,7 +385,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
           id: rid, type: 'resource',
           parentId: tg.id, extent: 'parent',
           position: { x: GROUP_PAD + vPos[rid].x, y: directY + vPos[rid].y },
-          data: { label: byId[rid].label, category: byId[rid].category },
+          data: { label: byId[rid].label, category: byId[rid].category, resourceType: byId[rid].resourceType },
           zIndex: 2,
         } as Node)
       }
@@ -344,7 +406,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
           id: rid, type: 'resource',
           parentId: tg.id, extent: 'parent',
           position: { x: GROUP_PAD + pos[rid].x, y: GROUP_HEADER + GROUP_PAD + pos[rid].y },
-          data: { label: byId[rid].label, category: byId[rid].category },
+          data: { label: byId[rid].label, category: byId[rid].category, resourceType: byId[rid].resourceType },
           zIndex: 2,
         } as Node)
       }
