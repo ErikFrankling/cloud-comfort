@@ -91,10 +91,78 @@ header h1 {
 
 /* --- Right Panel (tabs) --- */
 
-.right-panel {
+.right-panel,
+.middle-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.files-sidebar {
+  width: 280px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #2a2d35;
+  background: #0f1117;
+  transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+.files-sidebar.collapsed {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-left: none;
+}
+
+.sidebar-toggle-btn {
+  position: absolute;
+  right: 290px;
+  top: 60px;
+  width: 24px;
+  height: 48px;
+  background: #1a1d27;
+  border: 1px solid #2a2d35;
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: right 0.3s ease, color 0.15s;
+  z-index: 100;
+}
+
+.sidebar-toggle-btn:hover {
+  color: #8ab4f8;
+  background: #1e2433;
+}
+
+.sidebar-toggle-btn.sidebar-collapsed {
+  right: 0;
+}
+
+.files-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-bottom: 1px solid #2a2d35;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.file-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #2a2d35;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -329,13 +397,25 @@ header h1 {
 .files-layout {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .files-list {
-  width: 220px;
+  flex: 1;
   overflow-y: auto;
-  border-right: 1px solid #2a2d35;
+  border-right: none;
+}
+
+@keyframes fileSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .file-item {
@@ -344,7 +424,14 @@ header h1 {
   padding: 0.6rem 0.75rem;
   cursor: pointer;
   border-bottom: 1px solid #1a1d27;
-  transition: background 0.1s;
+  transition: background 0.1s, transform 0.15s ease, box-shadow 0.15s ease;
+  animation: fileSlideIn 0.25s ease-out both;
+}
+
+.file-item:hover {
+  background: #1a1d27;
+  transform: translateX(4px);
+  box-shadow: inset 3px 0 0 #8ab4f8;
 }
 
 .file-item:hover {
@@ -776,4 +863,61 @@ header h1 {
 @keyframes chat-pulse {
   0%, 80%, 100% { opacity: 0.3; }
   40% { opacity: 1; }
+}
+
+/* --- File Editor Panel --- */
+
+.file-editor-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.file-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #1a1d27;
+  border-bottom: 1px solid #2a2d35;
+  font-size: 0.85rem;
+  color: #e0e0e0;
+}
+
+.file-editor-header .unsaved {
+  color: #fdd835;
+  font-weight: bold;
+}
+
+.file-action-btn {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  background: #2a2d35;
+  border: 1px solid #3a3d45;
+  border-radius: 4px;
+  color: #aaa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.file-action-btn:hover {
+  background: #3a3d45;
+  color: #e0e0e0;
+}
+
+.file-action-btn.save {
+  background: #1a4d1a;
+  border-color: #2a6d2a;
+  color: #81c784;
+}
+
+.file-action-btn.save:hover {
+  background: #2a6d2a;
+}
+
+.file-editor-content {
+  flex: 1;
+  overflow: hidden;
 }

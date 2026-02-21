@@ -25,7 +25,6 @@ import {
   ResourceAmazonVPCPeeringConnection,
   ResourceAmazonVPCCustomerGateway,
   ResourceAmazonVPCVPNGateway,
-  ResourceAmazonVPCVirtualprivatecloudVPC,
   ResourceAmazonEC2Instance,
   ResourceAmazonEC2ElasticIPAddress,
   ResourceAmazonEC2AutoScaling,
@@ -54,8 +53,6 @@ import {
   ArchitectureServiceAmazonRoute53,
   ArchitectureServiceAmazonRedshift,
   ArchitectureServiceElasticLoadBalancing,
-  ArchitectureServiceAmazonSimpleQueueService,
-  ArchitectureServiceAmazonEC2AutoScaling,
 } from 'aws-react-icons'
 import type { FC } from 'react'
 
