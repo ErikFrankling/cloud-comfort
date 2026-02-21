@@ -74,13 +74,15 @@ function App() {
   const [chatLog, setChatLog] = useState<ChatMsg[]>([]);
   const [history, setHistory] = useState<LLMHistory>([]);
   const [sending, setSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<"graph" | "deploy" | "file">("deploy");
+  const [activeTab, setActiveTab] = useState<"graph" | "file">("graph");
+  const [logsOpen, setLogsOpen] = useState(false);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null);
   const [fileChanged, setFileChanged] = useState(false);
   const [deployStatus, setDeployStatus] = useState<DeployStatus>("idle");
   const [deployOutput, setDeployOutput] = useState<string[]>([]);
   const [deployError, setDeployError] = useState<string | null>(null);
+  const [failedStep, setFailedStep] = useState<"init" | "apply" | null>(null);
   const [planReady, setPlanReady] = useState(false);
   const [filesSidebarOpen, setFilesSidebarOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -91,6 +93,10 @@ function App() {
   };
 
   useEffect(scrollToBottom, [chatLog]);
+
+  useEffect(() => {
+    if (deployStatus === "error") setLogsOpen(true);
+  }, [deployStatus]);
 
   const [diagramLoading, setDiagramLoading] = useState(false);
   const [diagramError, setDiagramError] = useState<string | null>(null);
@@ -446,6 +452,7 @@ function App() {
       setDeployError(errorMsg);
       setDeployOutput((prev) => [...prev, `[ERROR] ${errorMsg}`]);
       setDeployStatus("error");
+      setFailedStep(endpoint as "init" | "apply");
       return Promise.reject(err);
     }
   };
@@ -453,6 +460,7 @@ function App() {
   const handleDeploy = async () => {
     setDeployOutput([]);
     setDeployError(null);
+    setFailedStep(null);
     setPlanReady(false);
 
     try {
@@ -474,19 +482,28 @@ function App() {
     setDeployStatus("idle");
     setDeployOutput([]);
     setDeployError(null);
+    setLogsOpen(false);
   };
+
+  const formatSize = (b: number) => b < 1024 ? `${b}B` : `${(b / 1024).toFixed(1)}K`;
 
   return (
     <div className="app">
       <header>
-        <h1>Cloud Comfort</h1>
+        <div className="header-brand">
+          <span className="header-icon">☁</span>
+          <h1 className="header-title">Cloud Comfort</h1>
+          <span className="header-badge">AI · Terraform</span>
+        </div>
       </header>
       <div className="panels">
         <div className="chat-panel">
           <div className="chat-log">
             {chatLog.map((msg, i) => (
               <div key={i} className={`chat-msg ${msg.role}`}>
-                <div className="chat-msg-role">{msg.role}</div>
+                <div className="chat-msg-avatar">
+                  {msg.role === "user" ? "You" : msg.role === "assistant" ? "AI" : "!"}
+                </div>
                 <div className="chat-msg-body">
                   {msg.segments.map((seg, j) => (
                     <ChatSegment key={j} segment={seg} />
@@ -502,32 +519,74 @@ function App() {
             <div ref={chatEndRef} />
           </div>
           <div className="chat-input">
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder="Describe your infrastructure..."
-              disabled={sending}
-            />
-            <button onClick={() => sendMessage()} disabled={sending}>
-              {sending ? "..." : "Send"}
-            </button>
+            <div className="chat-input-wrapper">
+              <input
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder="Describe your infrastructure..."
+                disabled={sending}
+              />
+              <button className="chat-send-btn" onClick={() => sendMessage()} disabled={sending} title="Send (Enter)">
+                {sending ? <span className="send-spinner" /> : <span>↑</span>}
+              </button>
+            </div>
           </div>
         </div>
 
         <div className="middle-panel">
+          <div className="pipeline-bar">
+            <div className="deploy-pipeline">
+              <div className={`pipeline-step ${
+                deployStatus === "init" ? "active" :
+                (deployStatus === "apply" || deployStatus === "success") ? "done" :
+                (deployStatus === "error" && failedStep === "init") ? "error" : ""
+              }`}>
+                <div className="pipeline-dot" />
+                <span className="pipeline-label">Init</span>
+              </div>
+              <div className={`pipeline-connector ${
+                (deployStatus === "apply" || deployStatus === "success") ? "done" : ""
+              }`} />
+              <div className={`pipeline-step ${
+                deployStatus === "apply" ? "active" :
+                deployStatus === "success" ? "done" :
+                (deployStatus === "error" && failedStep === "apply") ? "error" : ""
+              }`}>
+                <div className="pipeline-dot" />
+                <span className="pipeline-label">Apply</span>
+              </div>
+              <div className={`pipeline-connector ${deployStatus === "success" ? "done" : ""}`} />
+              <div className={`pipeline-step ${deployStatus === "success" ? "done" : ""}`}>
+                <div className="pipeline-dot" />
+                <span className="pipeline-label">Done</span>
+              </div>
+            </div>
+            <div className="pipeline-bar-actions">
+              <button className="show-logs-btn" onClick={() => setLogsOpen((o) => !o)}>
+                {logsOpen ? "Hide Logs" : "Deploy Logs"}
+              </button>
+              {deployStatus === "idle" && (
+                <button className="deploy-btn" onClick={handleDeploy}>Deploy</button>
+              )}
+              {deployStatus === "success" && (
+                <button className="deploy-btn" onClick={handleReset}>Reset</button>
+              )}
+              {(deployStatus === "error" || deployStatus === "success") && (
+                <button className="deploy-btn" onClick={handleDeploy}>Deploy Again</button>
+              )}
+              {(deployStatus === "init" || deployStatus === "apply") && (
+                <button className="deploy-btn" disabled>Running...</button>
+              )}
+            </div>
+          </div>
+
           <div className="tab-bar">
             <button
               className={activeTab === "graph" ? "active" : ""}
               onClick={() => setActiveTab("graph")}
             >
               Flow Chart
-            </button>
-            <button
-              className={activeTab === "deploy" ? "active" : ""}
-              onClick={() => setActiveTab("deploy")}
-            >
-              Deploy
             </button>
             {selectedFile && (
               <button
@@ -541,93 +600,26 @@ function App() {
 
           <div className="tab-content">
             <div style={{ display: activeTab === "graph" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
-                <div className="file-actions">
-                  <button onClick={generateDiagram} disabled={diagramLoading}>
-                    {diagramLoading ? "Generating..." : "Generate Diagram"}
-                  </button>
-                  {diagramError && (
-                    <span style={{ color: "#ef9a9a", fontSize: "0.8rem" }}>
-                      {diagramError}
-                    </span>
-                  )}
-                </div>
-                {!diagramNodes && !diagramLoading && (
-                  <div className="graph-placeholder">
-                    <p>
-                      Click Generate Diagram to visualize your infrastructure.
-                    </p>
-                  </div>
+              <div className="file-actions">
+                <button onClick={generateDiagram} disabled={diagramLoading}>
+                  {diagramLoading ? "Generating..." : "Generate Diagram"}
+                </button>
+                {diagramError && (
+                  <span style={{ color: "#ef9a9a", fontSize: "0.8rem" }}>
+                    {diagramError}
+                  </span>
                 )}
-                {diagramNodes && (
-                  <div className="diagram-output">
-                    <InfraFlow nodes={diagramNodes} edges={diagramEdges} />
-                  </div>
-                )}
-            </div>
-
-            <div style={{ display: activeTab === "deploy" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
-              <div className="deploy-panel">
-                <div className="deploy-header">
-                  <div className={`deploy-status status-${deployStatus}`}>
-                    {deployStatus === "idle" &&
-                      (planReady
-                        ? "Plan ready — click Deploy to apply"
-                        : "Ready to deploy")}
-                    {deployStatus === "init" && "Running terraform init..."}
-                    {deployStatus === "apply" && "Running terraform apply..."}
-                    {deployStatus === "success" && "Deployment successful!"}
-                    {deployStatus === "error" &&
-                      "Deployment failed — sending error to AI..."}
-                  </div>
-                  <div className="deploy-actions">
-                    {deployStatus === "idle" && (
-                      <button className="deploy-btn" onClick={handleDeploy}>
-                        Deploy
-                      </button>
-                    )}
-                    {deployStatus === "success" && (
-                      <button className="deploy-btn" onClick={handleReset}>
-                        Reset
-                      </button>
-                    )}
-                    {(deployStatus === "error" ||
-                      deployStatus === "success") && (
-                      <button className="deploy-btn" onClick={handleDeploy}>
-                        Deploy Again
-                      </button>
-                    )}
-                    {(deployStatus === "init" || deployStatus === "apply") && (
-                      <button className="deploy-btn" disabled>
-                        Running...
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {deployError && (
-                  <div className="deploy-error">
-                    <strong>Error:</strong> {deployError}
-                  </div>
-                )}
-
-                <div className="deploy-output">
-                  {deployOutput.length === 0 && deployStatus === "idle" && (
-                    <p className="empty-state">
-                      {planReady
-                        ? "Plan ready. Click Deploy to apply changes."
-                        : "Chat with the AI to generate terraform files. Plan runs automatically."}
-                    </p>
-                  )}
-                  {deployOutput.map((line, i) => (
-                    <div
-                      key={i}
-                      className={`output-line ${line.includes("[ERROR]") ? "error" : ""}`}
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </div>
               </div>
+              {!diagramNodes && !diagramLoading && (
+                <div className="graph-placeholder">
+                  <p>Click Generate Diagram to visualize your infrastructure.</p>
+                </div>
+              )}
+              {diagramNodes && (
+                <div className="diagram-output">
+                  <InfraFlow nodes={diagramNodes} edges={diagramEdges} />
+                </div>
+              )}
             </div>
 
             {selectedFile && (
@@ -666,6 +658,7 @@ function App() {
               </div>
             )}
           </div>
+
         </div>
 
         <button
@@ -680,16 +673,8 @@ function App() {
           <div className="files-sidebar-header">
             <span>Files</span>
             <button
+              className="sidebar-upload-btn"
               onClick={() => uploadRef.current?.click()}
-              style={{
-                padding: "0.25rem 0.5rem",
-                fontSize: "0.75rem",
-                background: "#1a1d27",
-                border: "1px solid #2a2d35",
-                borderRadius: "4px",
-                color: "#e0e0e0",
-                cursor: "pointer",
-              }}
             >
               + Upload
             </button>
@@ -704,9 +689,11 @@ function App() {
 
           <div className="files-list">
             {files.length === 0 && (
-              <p className="empty-state">
-                No .tf files yet.
-              </p>
+              <div className="empty-state-files">
+                <div className="empty-state-icon">{"{}"}</div>
+                <p>No .tf files yet</p>
+                <p className="empty-state-hint">Chat with the AI to generate your first file</p>
+              </div>
             )}
             {files.map((f, i) => (
               <div
@@ -715,8 +702,9 @@ function App() {
                 onClick={() => viewFile(f.name)}
                 style={{ animationDelay: `${i * 50}ms` }}
               >
+                <div className="file-icon">{f.name.endsWith(".tfvars") ? "⚙" : "{}"}</div>
                 <span className="file-name">{f.name}</span>
-                <span className="file-size">{f.size} B</span>
+                <span className="file-size">{formatSize(f.size)}</span>
               </div>
             ))}
           </div>
@@ -724,6 +712,36 @@ function App() {
 
         </div>
       </div>
+      {logsOpen && (
+        <div className="logs-modal-backdrop" onClick={() => setLogsOpen(false)}>
+          <div className="logs-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="logs-modal-header">
+              <span className="logs-modal-title">Deploy Logs</span>
+              <button className="logs-modal-close" onClick={() => setLogsOpen(false)}>✕</button>
+            </div>
+            {deployError && (
+              <div className="logs-modal-error">
+                <strong>Error:</strong> {deployError}
+              </div>
+            )}
+            <div className="logs-modal-output">
+              {deployOutput.length === 0 ? (
+                <p className="empty-state">
+                  {planReady
+                    ? "Plan ready. Click Deploy to apply changes."
+                    : "No logs yet — click Deploy to start."}
+                </p>
+              ) : (
+                deployOutput.map((line, i) => (
+                  <div key={i} className={`output-line ${line.includes("[ERROR]") ? "error" : ""}`}>
+                    {line}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
