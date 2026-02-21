@@ -12,6 +12,7 @@ import {
   BackgroundVariant,
   useNodesState,
   useEdgesState,
+  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -28,6 +29,7 @@ import {
   ResourceAmazonEC2Instance,
   ResourceAmazonEC2ElasticIPAddress,
   ResourceAmazonEC2AutoScaling,
+  ResourceAmazonCloudFrontDownloadDistribution,
   ResourceAmazonSimpleStorageServiceBucket,
   ResourceAmazonDynamoDBTable,
   ResourceAmazonElastiCacheCacheNode,
@@ -86,6 +88,8 @@ const resourceIconMap: Record<string, AwsIcon> = {
   aws_launch_template:              ArchitectureServiceAmazonEC2 as AwsIcon,
   aws_launch_configuration:         ArchitectureServiceAmazonEC2 as AwsIcon,
   aws_autoscaling_group:            ResourceAmazonEC2AutoScaling as AwsIcon,
+  aws_cloudfront_distribution:      ResourceAmazonCloudFrontDownloadDistribution as AwsIcon,
+  aws_cloudfront_origin_access_control: ResourceAmazonCloudFrontDownloadDistribution as AwsIcon,
   aws_lambda_function:              ResourceAWSLambdaLambdaFunction as AwsIcon,
   aws_lambda_permission:            ArchitectureServiceAWSLambda as AwsIcon,
   aws_ecs_cluster:                  ArchitectureServiceAmazonECSAnywhere as AwsIcon,
@@ -249,7 +253,8 @@ function getIcon(resourceType?: string): AwsIcon | null {
   if (resourceType.startsWith('aws_route53'))          return ArchitectureServiceAmazonRoute53 as AwsIcon
   if (resourceType.startsWith('aws_lb') || resourceType.startsWith('aws_alb') || resourceType.startsWith('aws_elb')) return ResourceElasticLoadBalancingApplicationLoadBalancer as AwsIcon
   if (resourceType.startsWith('aws_secretsmanager'))   return ArchitectureServiceAWSSecretsManager as AwsIcon
-  if (resourceType.startsWith('aws_autoscaling'))      return ArchitectureServiceAmazonEC2AutoScaling as AwsIcon
+  if (resourceType.startsWith('aws_autoscaling'))      return ResourceAmazonEC2AutoScaling as AwsIcon
+  if (resourceType.startsWith('aws_cloudfront'))       return ResourceAmazonCloudFrontDownloadDistribution as AwsIcon
   if (resourceType.startsWith('aws_instance'))         return ResourceAmazonEC2Instance as AwsIcon
   if (resourceType.startsWith('aws_vpc'))              return ResourceAmazonVPCEndpoints as AwsIcon
   return null
@@ -285,18 +290,21 @@ const groupCfg: Record<string, { bg: string; border: string; text: string; dashe
 }
 
 // ─── Custom nodes ────────────────────────────────────────────────────────────
-function ResourceNode({ data }: NodeProps) {
+function ResourceNode({ data, id }: NodeProps) {
   const d = data as any
   const s = catStyle[d.category] ?? catStyle.other
   const Icon = getIcon(d.resourceType)
   const description = getDescription(d.resourceType)
   const [tooltip, setTooltip] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { setNodes } = useReactFlow()
 
   const onMouseEnter = () => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, zIndex: 1000 } : n))
     timer.current = setTimeout(() => setTooltip(true), 500)
   }
   const onMouseLeave = () => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, zIndex: 2 } : n))
     if (timer.current) clearTimeout(timer.current)
     setTooltip(false)
   }
