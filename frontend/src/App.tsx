@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
-import mermaid from 'mermaid'
-
-mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+import InfraFlow, { ApiNode, ApiEdge } from './InfraFlow'
 
 type FileEntry = { name: string; size: number }
 type SelectedFile = { name: string; content: string } | null
@@ -35,27 +33,19 @@ function App() {
 
   const [diagramLoading, setDiagramLoading] = useState(false)
   const [diagramError, setDiagramError] = useState<string | null>(null)
-  const [mermaidCode, setMermaidCode] = useState<string | null>(null)
-  const diagramRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!mermaidCode || !diagramRef.current) return
-    mermaid.render('diagram', mermaidCode).then(({ svg }) => {
-      diagramRef.current!.innerHTML = svg
-    }).catch(() => {
-      diagramRef.current!.innerHTML = '<p style="color:#ef9a9a;padding:1rem">Failed to render diagram.</p>'
-    })
-  }, [mermaidCode])
+  const [diagramNodes, setDiagramNodes] = useState<ApiNode[] | null>(null)
+  const [diagramEdges, setDiagramEdges] = useState<ApiEdge[]>([])
 
   const generateDiagram = async () => {
     setDiagramLoading(true)
     setDiagramError(null)
-    setMermaidCode(null)
+    setDiagramNodes(null)
     try {
       const res = await fetch('/api/diagram', { method: 'POST' })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
-      setMermaidCode(data.mermaid)
+      setDiagramNodes(data.nodes ?? [])
+      setDiagramEdges(data.edges ?? [])
     } catch (e) {
       setDiagramError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
@@ -403,12 +393,16 @@ function App() {
                   </button>
                   {diagramError && <span style={{ color: '#ef9a9a', fontSize: '0.8rem' }}>{diagramError}</span>}
                 </div>
-                {!mermaidCode && !diagramLoading && (
+                {!diagramNodes && !diagramLoading && (
                   <div className="graph-placeholder">
                     <p>Click Generate Diagram to visualize your infrastructure.</p>
                   </div>
                 )}
-                <div ref={diagramRef} className="diagram-output" />
+                {diagramNodes && (
+                  <div className="diagram-output">
+                    <InfraFlow nodes={diagramNodes} edges={diagramEdges} />
+                  </div>
+                )}
               </>
             )}
 

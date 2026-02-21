@@ -144,16 +144,8 @@ header h1 {
 
 .diagram-output {
   flex: 1;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-.diagram-output svg {
-  max-width: 100%;
-  height: auto;
+  overflow: hidden;
+  position: relative;
 }
 
 /* --- Files tab --- */
