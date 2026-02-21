@@ -34,7 +34,7 @@ header h1 {
   overflow: hidden;
 }
 
-/* --- Chat Panel (left) --- */
+/* --- Left Panel --- */
 
 .chat-panel {
   width: 400px;
@@ -43,27 +43,24 @@ header h1 {
   border-right: 1px solid #2a2d35;
 }
 
-.chat-log {
+.hcl-input {
   flex: 1;
-  overflow-y: auto;
+  resize: none;
   padding: 1rem;
-}
-
-.chat-msg {
-  margin-bottom: 0.75rem;
-  line-height: 1.5;
-}
-
-.chat-msg.user {
-  color: #8ab4f8;
-}
-
-.chat-msg.assistant {
+  background: #1a1d27;
   color: #c8e6c9;
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  border: none;
+  outline: none;
 }
 
-.chat-msg.error {
+.hcl-error {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
   color: #ef9a9a;
+  border-top: 1px solid #2a2d35;
 }
 
 .chat-input {
@@ -71,21 +68,6 @@ header h1 {
   padding: 0.75rem;
   border-top: 1px solid #2a2d35;
   gap: 0.5rem;
-}
-
-.chat-input input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #2a2d35;
-  border-radius: 6px;
-  background: #1a1d27;
-  color: #e0e0e0;
-  font-size: 0.875rem;
-}
-
-.chat-input input:focus {
-  outline: none;
-  border-color: #8ab4f8;
 }
 
 .chat-input button {
@@ -98,8 +80,13 @@ header h1 {
   cursor: pointer;
 }
 
-.chat-input button:hover {
+.chat-input button:hover:not(:disabled) {
   background: #aecbfa;
+}
+
+.chat-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* --- Right Panel (tabs) --- */
@@ -145,7 +132,7 @@ header h1 {
   flex-direction: column;
 }
 
-/* --- Graph tab --- */
+/* --- Graph panel --- */
 
 .graph-placeholder {
   flex: 1;
@@ -153,6 +140,20 @@ header h1 {
   align-items: center;
   justify-content: center;
   color: #666;
+}
+
+.diagram-output {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.diagram-output svg {
+  max-width: 100%;
+  height: auto;
 }
 
 /* --- Files tab --- */
