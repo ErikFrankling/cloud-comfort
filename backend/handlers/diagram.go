@@ -23,7 +23,6 @@ var (
 
 func HandleDiagram(workDir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Run terraform init if not already done
 		if _, err := os.Stat(filepath.Join(workDir, ".terraform")); os.IsNotExist(err) {
 			init := exec.CommandContext(r.Context(), "terraform", "init", "-input=false")
 			init.Dir = workDir
@@ -33,7 +32,6 @@ func HandleDiagram(workDir string) http.HandlerFunc {
 			}
 		}
 
-		// Run terraform graph
 		var buf bytes.Buffer
 		graph := exec.CommandContext(r.Context(), "terraform", "graph")
 		graph.Dir = workDir
@@ -51,8 +49,6 @@ func HandleDiagram(workDir string) http.HandlerFunc {
 	}
 }
 
-// noisySuffixes are resource type suffixes that represent glue/sub-resources
-// and add visual noise without meaningful architectural information.
 var noisySuffixes = []string{
 	"_association",
 	"_attachment",
@@ -74,7 +70,6 @@ func isNoisyResource(resourceType string) bool {
 	return false
 }
 
-// resourceCategory maps an AWS resource type prefix to a style class.
 func resourceCategory(resourceType string) string {
 	networking := []string{"aws_vpc", "aws_subnet", "aws_internet_gateway", "aws_route", "aws_nat_gateway", "aws_network_acl", "aws_eip"}
 	compute := []string{"aws_instance", "aws_lambda", "aws_ecs", "aws_eks", "aws_autoscaling", "aws_launch"}
@@ -110,15 +105,12 @@ func resourceCategory(resourceType string) string {
 	return "other"
 }
 
-// humanLabel converts "aws_s3_bucket.my_assets" to "S3 Bucket: my_assets".
 func humanLabel(node string) string {
 	parts := strings.SplitN(node, ".", 2)
 	if len(parts) != 2 {
 		return node
 	}
 	resourceType, name := parts[0], parts[1]
-
-	// Strip aws_ prefix, replace underscores with spaces, title case
 	display := strings.TrimPrefix(resourceType, "aws_")
 	display = strings.ReplaceAll(display, "_", " ")
 	words := strings.Fields(display)
@@ -127,12 +119,23 @@ func humanLabel(node string) string {
 			words[i] = strings.ToUpper(w[:1]) + w[1:]
 		}
 	}
-
 	return strings.Join(words, " ") + ": " + name
 }
 
+func nodeDef(id, label, category string) string {
+	human := humanLabel(label)
+	switch category {
+	case "database":
+		return fmt.Sprintf("  %s[(\"%s\")]:::%s\n", id, human, category)
+	case "compute":
+		return fmt.Sprintf("  %s(\"%s\"):::%s\n", id, human, category)
+	default:
+		return fmt.Sprintf("  %s[\"%s\"]:::%s\n", id, human, category)
+	}
+}
+
 func dotToMermaid(dot string) string {
-	nodeIDs := make(map[string]string) // label -> safe id
+	nodeIDs := make(map[string]string)
 	idCounter := 0
 
 	nodeID := func(label string) string {
@@ -148,6 +151,9 @@ func dotToMermaid(dot string) string {
 	type edge struct{ from, to string }
 	var edges []edge
 	edgeSet := make(map[string]bool)
+	// assocConnections captures edges involving noisy (association) resources
+	// so we can infer subnet placement without rendering them
+	assocConnections := make(map[string][]string)
 
 	for _, line := range strings.Split(dot, "\n") {
 		if n := nodeRe.FindStringSubmatch(line); n != nil {
@@ -166,10 +172,17 @@ func dotToMermaid(dot string) string {
 			if from == "root" || to == "root" {
 				continue
 			}
-			if isNoisyResource(fromType) || isNoisyResource(toType) {
+			if strings.HasPrefix(from, "provider[") || strings.HasPrefix(to, "provider[") {
 				continue
 			}
-			if strings.HasPrefix(from, "provider[") || strings.HasPrefix(to, "provider[") {
+			// For association resources: capture their connections for placement
+			// inference but don't render them as nodes or edges
+			if isNoisyResource(fromType) {
+				assocConnections[from] = append(assocConnections[from], to)
+				continue
+			}
+			if isNoisyResource(toType) {
+				assocConnections[to] = append(assocConnections[to], from)
 				continue
 			}
 			key := from + "->" + to
@@ -182,10 +195,141 @@ func dotToMermaid(dot string) string {
 		}
 	}
 
+	// Build outgoing edge map for placement logic
+	outEdges := make(map[string][]string)
+	for _, e := range edges {
+		outEdges[e.from] = append(outEdges[e.from], e.to)
+	}
+
+	isVPC := func(label string) bool { return strings.HasPrefix(label, "aws_vpc.") }
+	isSubnet := func(label string) bool { return strings.HasPrefix(label, "aws_subnet.") }
+
+	// Map each subnet to its parent VPC
+	subnetVPC := make(map[string]string)
+	for label := range nodeIDs {
+		if isSubnet(label) {
+			for _, dep := range outEdges[label] {
+				if isVPC(dep) {
+					subnetVPC[label] = dep
+					break
+				}
+			}
+		}
+	}
+
+	// Build incoming edge map too
+	inEdges := make(map[string][]string)
+	for _, e := range edges {
+		inEdges[e.to] = append(inEdges[e.to], e.from)
+	}
+
+	// Determine placement for each non-VPC, non-subnet node
+	type placement struct{ kind, parent string } // kind: "in-subnet" | "in-vpc" | "global"
+	placements := make(map[string]placement)
+	for label := range nodeIDs {
+		if isVPC(label) || isSubnet(label) {
+			continue
+		}
+		var foundSubnet, foundVPC string
+		for _, dep := range outEdges[label] {
+			if isSubnet(dep) && foundSubnet == "" {
+				foundSubnet = dep
+			}
+			if isVPC(dep) && foundVPC == "" {
+				foundVPC = dep
+			}
+		}
+		switch {
+		case foundSubnet != "":
+			placements[label] = placement{"in-subnet", foundSubnet}
+		case foundVPC != "":
+			placements[label] = placement{"in-vpc", foundVPC}
+		default:
+			placements[label] = placement{"global", ""}
+		}
+	}
+
+	// Second pass: propagate VPC placement via both edge directions.
+	// Resources like aws_eip don't reference the VPC directly but are
+	// connected to resources that do — pull them into the VPC.
+	changed := true
+	for changed {
+		changed = false
+		for label, p := range placements {
+			if p.kind != "global" {
+				continue
+			}
+			neighbors := append(outEdges[label], inEdges[label]...)
+			for _, nb := range neighbors {
+				nbP, ok := placements[nb]
+				if !ok {
+					continue
+				}
+				if nbP.kind == "in-vpc" {
+					placements[label] = placement{"in-vpc", nbP.parent}
+					changed = true
+					break
+				}
+				if nbP.kind == "in-subnet" {
+					placements[label] = placement{"in-vpc", subnetVPC[nbP.parent]}
+					changed = true
+					break
+				}
+			}
+		}
+	}
+
+	// Third pass: use association edges to place resources into subnets.
+	// e.g. aws_route_table_association links a route table to a subnet —
+	// use that to put the route table inside the subnet subgraph.
+	// Build resource -> []subnets map via association connections.
+	resourceSubnetsViaAssoc := make(map[string][]string)
+	for _, connected := range assocConnections {
+		var subnets, others []string
+		for _, label := range connected {
+			if strings.HasPrefix(label, "aws_subnet.") {
+				subnets = append(subnets, label)
+			} else if _, exists := nodeIDs[label]; exists {
+				others = append(others, label)
+			}
+		}
+		for _, other := range others {
+			for _, subnet := range subnets {
+				resourceSubnetsViaAssoc[other] = append(resourceSubnetsViaAssoc[other], subnet)
+			}
+		}
+	}
+	for label, assocSubnets := range resourceSubnetsViaAssoc {
+		p := placements[label]
+		if p.kind == "in-subnet" {
+			continue // already placed precisely
+		}
+		if len(assocSubnets) == 1 {
+			placements[label] = placement{"in-subnet", assocSubnets[0]}
+		} else if len(assocSubnets) > 1 {
+			// Associated with multiple subnets — promote to VPC level
+			if vpc := subnetVPC[assocSubnets[0]]; vpc != "" {
+				placements[label] = placement{"in-vpc", vpc}
+			}
+		}
+	}
+
+	// Group subnets by VPC
+	vpcSubnets := make(map[string][]string)
+	for subnet, vpc := range subnetVPC {
+		vpcSubnets[vpc] = append(vpcSubnets[vpc], subnet)
+	}
+
+	// Collect all VPCs
+	var vpcs []string
+	for label := range nodeIDs {
+		if isVPC(label) {
+			vpcs = append(vpcs, label)
+		}
+	}
+
 	var sb strings.Builder
 	sb.WriteString("graph TD\n")
-
-	// Style classes — vibrant colours, thick glowing-style borders
 	sb.WriteString("  classDef networking fill:#0d47a1,stroke:#42a5f5,stroke-width:2px,color:#e3f2fd,font-weight:bold\n")
 	sb.WriteString("  classDef compute fill:#bf360c,stroke:#ff7043,stroke-width:2px,color:#fbe9e7,font-weight:bold\n")
 	sb.WriteString("  classDef storage fill:#1b5e20,stroke:#66bb6a,stroke-width:2px,color:#e8f5e9,font-weight:bold\n")
@@ -193,54 +337,74 @@ func dotToMermaid(dot string) string {
 	sb.WriteString("  classDef security fill:#b71c1c,stroke:#ef5350,stroke-width:2px,color:#ffebee,font-weight:bold\n")
 	sb.WriteString("  classDef other fill:#263238,stroke:#78909c,stroke-width:2px,color:#eceff1,font-weight:bold\n")
 
-	// Nodes — shape varies by category
-	for label, id := range nodeIDs {
-		rtype := strings.SplitN(label, ".", 2)[0]
-		category := resourceCategory(rtype)
-		human := humanLabel(label)
-		var nodeDef string
-		switch category {
-		case "database":
-			nodeDef = fmt.Sprintf("  %s[(\"%s\")]:::%s\n", id, human, category) // cylinder
-		case "compute":
-			nodeDef = fmt.Sprintf("  %s(\"%s\"):::%s\n", id, human, category) // rounded
-		default:
-			nodeDef = fmt.Sprintf("  %s[\"%s\"]:::%s\n", id, human, category) // rectangle
+	// Render VPC subgraphs — nodes defined INSIDE subgraphs so Mermaid places them correctly
+	for _, vpc := range vpcs {
+		vpcID := nodeIDs[vpc]
+		sb.WriteString(fmt.Sprintf("  subgraph %s_sg[\"%s\"]\n", vpcID, humanLabel(vpc)))
+
+		for _, subnet := range vpcSubnets[vpc] {
+			subnetID := nodeIDs[subnet]
+
+			// Collect resources inside this subnet
+			var subnetResources []string
+			for label, p := range placements {
+				if p.kind == "in-subnet" && p.parent == subnet {
+					subnetResources = append(subnetResources, label)
+				}
+			}
+
+			if len(subnetResources) > 0 {
+				// Non-empty subnet: nested subgraph containing its resources
+				sb.WriteString(fmt.Sprintf("    subgraph %s_sg[\"%s\"]\n", subnetID, humanLabel(subnet)))
+				for _, label := range subnetResources {
+					cat := resourceCategory(strings.SplitN(label, ".", 2)[0])
+					sb.WriteString("      " + nodeDef(nodeIDs[label], label, cat))
+				}
+				sb.WriteString("    end\n")
+			} else {
+				// Empty subnet: plain node inside the VPC box
+				sb.WriteString("    " + nodeDef(subnetID, subnet, "networking"))
+			}
 		}
-		sb.WriteString(nodeDef)
+
+		// VPC-level resources (not inside any subnet)
+		for label, p := range placements {
+			if p.kind == "in-vpc" && p.parent == vpc {
+				cat := resourceCategory(strings.SplitN(label, ".", 2)[0])
+				sb.WriteString("    " + nodeDef(nodeIDs[label], label, cat))
+			}
+		}
+
+		sb.WriteString("  end\n")
 	}
 
-	// Find nodes that have no edges
-	connected := make(map[string]bool)
-	for _, e := range edges {
-		connected[e.from] = true
-		connected[e.to] = true
-	}
-
-	// Isolated nodes go into a Global AWS Services subgraph
-	var isolated []string
-	for label := range nodeIDs {
-		if !connected[label] {
-			isolated = append(isolated, label)
+	// Global subgraph
+	var globals []string
+	for label, p := range placements {
+		if p.kind == "global" {
+			globals = append(globals, label)
 		}
 	}
-	if len(isolated) > 0 {
+	if len(globals) > 0 {
 		sb.WriteString("  subgraph global[\"☁️ Global AWS Services\"]\n")
-		for _, label := range isolated {
-			sb.WriteString(fmt.Sprintf("    %s\n", nodeIDs[label]))
+		for _, label := range globals {
+			cat := resourceCategory(strings.SplitN(label, ".", 2)[0])
+			sb.WriteString("    " + nodeDef(nodeIDs[label], label, cat))
 		}
 		sb.WriteString("  end\n")
 	}
 
-	// Edges
+	// Edges — skip to VPCs/subnets since containment already shows the relationship
 	for _, e := range edges {
+		if isVPC(e.to) || isSubnet(e.to) {
+			continue
+		}
 		sb.WriteString(fmt.Sprintf("  %s --> %s\n", nodeIDs[e.from], nodeIDs[e.to]))
 	}
 
 	return sb.String()
 }
 
-// cleanNode strips the "[root] " prefix and " (expand)" suffix terraform adds.
 func cleanNode(label string) string {
 	label = strings.TrimPrefix(label, "[root] ")
 	label = strings.TrimSuffix(label, " (expand)")
