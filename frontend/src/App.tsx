@@ -540,8 +540,7 @@ function App() {
           </div>
 
           <div className="tab-content">
-            {activeTab === "graph" && (
-              <>
+            <div style={{ display: activeTab === "graph" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
                 <div className="file-actions">
                   <button onClick={generateDiagram} disabled={diagramLoading}>
                     {diagramLoading ? "Generating..." : "Generate Diagram"}
@@ -564,10 +563,9 @@ function App() {
                     <InfraFlow nodes={diagramNodes} edges={diagramEdges} />
                   </div>
                 )}
-              </>
-            )}
+            </div>
 
-            {activeTab === "files" && (
+            <div style={{ display: activeTab === "files" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
               <div className="files-panel">
                 <div className="file-actions">
                   <button onClick={fetchFiles}>Refresh</button>
@@ -643,9 +641,9 @@ function App() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {activeTab === "deploy" && (
+            <div style={{ display: activeTab === "deploy" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
               <div className="deploy-panel">
                 <div className="deploy-header">
                   <div className={`deploy-status status-${deployStatus}`}>
@@ -708,7 +706,7 @@ function App() {
                   ))}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
