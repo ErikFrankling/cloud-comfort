@@ -171,6 +171,18 @@ header h1 {
     0 8px 24px rgba(0, 0, 0, 0.7);
 }
 
+/* --- Edge shimmer on selection --- */
+
+.edge-shimmer .react-flow__edge-path {
+  filter: drop-shadow(0 0 4px #8ab4f8) drop-shadow(0 0 10px #8ab4f8aa);
+  animation: edge-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes edge-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px #8ab4f8) drop-shadow(0 0 8px #8ab4f866); }
+  50%       { filter: drop-shadow(0 0 6px #8ab4f8) drop-shadow(0 0 16px #8ab4f8aa); }
+}
+
 /* --- Node tooltip --- */
 
 .node-tooltip {

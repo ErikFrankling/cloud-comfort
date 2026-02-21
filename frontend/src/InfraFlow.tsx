@@ -558,18 +558,59 @@ interface InfraFlowProps {
 export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlowProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const baseEdges = useRef<Edge[]>([])
 
   useEffect(() => {
+    setSelectedId(null)
     setRfNodes(computeLayout(apiNodes, apiEdges))
-    setRfEdges(
-      apiEdges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        style: { stroke: '#546e7a', strokeWidth: 1.5 },
-      }))
-    )
+    const edges = apiEdges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      animated: true,
+      style: { stroke: '#546e7a', strokeWidth: 1.5 },
+    }))
+    baseEdges.current = edges
+    setRfEdges(edges)
   }, [apiNodes, apiEdges])
+
+  // Apply highlight whenever selectedId changes
+  useEffect(() => {
+    if (!selectedId) {
+      // reset
+      setRfNodes(nds => nds.map(n => ({ ...n, style: { ...n.style, opacity: 1 } })))
+      setRfEdges(baseEdges.current)
+      return
+    }
+
+    const connectedEdges = baseEdges.current.filter(
+      e => e.source === selectedId || e.target === selectedId
+    )
+    const connectedIds = new Set(
+      connectedEdges.flatMap(e => [e.source, e.target])
+    )
+
+    setRfNodes(nds => nds.map(n => ({
+      ...n,
+      style: {
+        ...n.style,
+        opacity: n.id === selectedId || connectedIds.has(n.id) ? 1 : 0.2,
+      },
+    })))
+
+    setRfEdges(baseEdges.current.map(e => {
+      const isConnected = e.source === selectedId || e.target === selectedId
+      return isConnected
+        ? {
+            ...e,
+            animated: true,
+            className: 'edge-shimmer',
+            style: { stroke: '#8ab4f8', strokeWidth: 2.5 },
+          }
+        : { ...e, animated: false, style: { stroke: '#546e7a', strokeWidth: 1.5, opacity: 0.15 } }
+    }))
+  }, [selectedId])
 
   return (
     <ReactFlow
@@ -583,6 +624,8 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
       minZoom={0.05}
       nodesDraggable={false}
       style={{ background: '#0d0f14' }}
+      onNodeClick={(_, node) => setSelectedId(id => id === node.id ? null : node.id)}
+      onPaneClick={() => setSelectedId(null)}
     >
       <Background color="#1e2330" variant={BackgroundVariant.Dots} gap={20} />
       <Controls style={{ background: '#1a1d27', borderColor: '#2a2d35' }} />
