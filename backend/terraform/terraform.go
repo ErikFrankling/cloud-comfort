@@ -128,6 +128,50 @@ func (s *Service) Plan(ctx context.Context, output io.Writer) (*tfjson.Plan, boo
 	return plan, hasChanges, nil
 }
 
+// Validate runs terraform validate and returns structured diagnostics.
+// Requires Init() to have been run first (providers must be downloaded).
+func (s *Service) Validate(ctx context.Context) (*tfjson.ValidateOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tf, err := s.newTF(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := tf.Validate(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("terraform validate: %w", err)
+	}
+
+	return result, nil
+}
+
+// Format runs terraform fmt on all files in the working directory, writing
+// formatted output back in place.
+func (s *Service) Format(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tf, err := s.newTF(nil)
+	if err != nil {
+		return err
+	}
+
+	if err := tf.FormatWrite(ctx); err != nil {
+		return fmt.Errorf("terraform fmt: %w", err)
+	}
+
+	return nil
+}
+
+// IsInitialized checks if terraform init has been run by looking for the
+// .terraform directory.
+func (s *Service) IsInitialized() bool {
+	info, err := os.Stat(filepath.Join(s.workDir, ".terraform"))
+	return err == nil && info.IsDir()
+}
+
 // Apply runs terraform apply in the working directory.
 func (s *Service) Apply(ctx context.Context, output io.Writer) error {
 	s.mu.Lock()
