@@ -19,6 +19,7 @@ type GraphNode struct {
 	Kind         string `json:"kind"`         // "group" | "resource"
 	ResourceType string `json:"resourceType"` // raw terraform resource type, e.g. "aws_s3_bucket"
 	Parent       string `json:"parent,omitempty"`
+	CIDR         string `json:"cidr,omitempty"`
 }
 
 type GraphEdge struct {
@@ -35,7 +36,32 @@ type DiagramResponse struct {
 var (
 	edgeRe = regexp.MustCompile(`"([^"]+)"\s+->\s+"([^"]+)"`)
 	nodeRe = regexp.MustCompile(`"([^"]+)"\s+\[label="([^"]+)"\]`)
+	cidrRe = regexp.MustCompile(`resource\s+"(aws_vpc|aws_subnet)"\s+"([^"]+)"[^}]*cidr_block\s*=\s*"([^"]+)"`)
 )
+
+func extractCIDRs(workDir string) map[string]string {
+	cidrs := make(map[string]string)
+	files, err := os.ReadDir(workDir)
+	if err != nil {
+		return cidrs
+	}
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".tf") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(workDir, f.Name()))
+		if err != nil {
+			continue
+		}
+		matches := cidrRe.FindAllSubmatch(data, -1)
+		for _, m := range matches {
+			rtype, name, cidr := string(m[1]), string(m[2]), string(m[3])
+			key := rtype + "." + name
+			cidrs[key] = cidr
+		}
+	}
+	return cidrs
+}
 
 func HandleDiagram(workDir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +85,7 @@ func HandleDiagram(workDir string) http.HandlerFunc {
 			return
 		}
 
-		result := dotToGraph(buf.String())
+		result := dotToGraph(buf.String(), extractCIDRs(workDir))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
 	}
@@ -159,7 +185,7 @@ func cleanNode(label string) string {
 	return label
 }
 
-func dotToGraph(dot string) DiagramResponse {
+func dotToGraph(dot string, cidrs map[string]string) DiagramResponse {
 	nodeIDs := make(map[string]string)
 	idCounter := 0
 
@@ -356,6 +382,7 @@ func dotToGraph(dot string) DiagramResponse {
 			Label:    humanLabel(vpc),
 			Category: "vpc",
 			Kind:     "group",
+			CIDR:     cidrs[vpc],
 		})
 		for _, subnet := range vpcSubnets[vpc] {
 			jsonNodes = append(jsonNodes, GraphNode{
@@ -364,6 +391,7 @@ func dotToGraph(dot string) DiagramResponse {
 				Category: "subnet",
 				Kind:     "group",
 				Parent:   vpcGroupID,
+				CIDR:     cidrs[subnet],
 			})
 		}
 	}

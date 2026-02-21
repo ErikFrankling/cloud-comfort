@@ -65,6 +65,7 @@ export interface ApiNode {
   kind: 'group' | 'resource'
   resourceType?: string
   parent?: string
+  cidr?: string
 }
 
 const resourceIconMap: Record<string, AwsIcon> = {
@@ -385,6 +386,11 @@ function GroupNode({ data }: NodeProps) {
         <span style={{ color: cfg.text, fontSize: 12, fontWeight: 700, letterSpacing: '0.01em' }}>
           {d.label}
         </span>
+        {d.cidr && (
+          <span style={{ color: cfg.text, fontSize: 10, opacity: 0.7, marginLeft: 4 }}>
+            ({d.cidr})
+          </span>
+        )}
       </div>
     </div>
   )
@@ -482,7 +488,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
           id: sid, type: 'infraGroup',
           parentId: tg.id, extent: 'parent',
           position: { x: subX, y: GROUP_HEADER + GROUP_PAD },
-          data: { label: byId[sid].label, category: 'subnet' },
+          data: { label: byId[sid].label, category: 'subnet', cidr: byId[sid].cidr },
           style: { width: sw, height: sh },
           zIndex: 1, selectable: false,
         } as Node)
@@ -542,7 +548,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
     groupNodes.unshift({
       id: tg.id, type: 'infraGroup',
       position: { x: topX, y: 0 },
-      data: { label: tg.label, category: tg.category },
+      data: { label: tg.label, category: tg.category, cidr: tg.cidr },
       style: { width: tgW || 300, height: tgH || 200 },
       zIndex: 0, selectable: false,
     } as Node)
