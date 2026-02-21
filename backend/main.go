@@ -59,7 +59,7 @@ func main() {
 	// Chat endpoint (SSE streaming with LLM + validation)
 	mux.HandleFunc("POST /api/chat", handlers.HandleChat(llmClient, tfSvc))
 	// Diagram generation
-	mux.HandleFunc("POST /api/diagram", handlers.HandleDiagram(workDir))
+	mux.HandleFunc("POST /api/diagram", handlers.HandleDiagram(tfSvc))
 
 	// Health check
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {

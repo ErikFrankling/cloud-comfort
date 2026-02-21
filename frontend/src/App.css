@@ -89,6 +89,15 @@ header h1 {
   cursor: not-allowed;
 }
 
+.chat-input .stop-btn {
+  background: #ef5350;
+  color: #fff;
+}
+
+.chat-input .stop-btn:hover {
+  background: #f44336;
+}
+
 /* --- Right Panel (tabs) --- */
 
 .right-panel {

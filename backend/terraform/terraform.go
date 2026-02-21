@@ -172,6 +172,24 @@ func (s *Service) IsInitialized() bool {
 	return err == nil && info.IsDir()
 }
 
+// Graph runs terraform graph and returns the DOT output string.
+func (s *Service) Graph(ctx context.Context) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tf, err := s.newTF(nil)
+	if err != nil {
+		return "", err
+	}
+
+	dot, err := tf.Graph(ctx)
+	if err != nil {
+		return "", fmt.Errorf("terraform graph: %w", err)
+	}
+
+	return dot, nil
+}
+
 // Apply runs terraform apply in the working directory.
 func (s *Service) Apply(ctx context.Context, output io.Writer) error {
 	s.mu.Lock()

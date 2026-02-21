@@ -1,15 +1,14 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
+
+	"cloud-comfort/backend/terraform"
 )
 
 type GraphNode struct {
@@ -37,29 +36,22 @@ var (
 	nodeRe = regexp.MustCompile(`"([^"]+)"\s+\[label="([^"]+)"\]`)
 )
 
-func HandleDiagram(workDir string) http.HandlerFunc {
+func HandleDiagram(tfSvc *terraform.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat(filepath.Join(workDir, ".terraform")); os.IsNotExist(err) {
-			init := exec.CommandContext(r.Context(), "terraform", "init", "-input=false")
-			init.Dir = workDir
-			if out, err := init.CombinedOutput(); err != nil {
-				http.Error(w, "terraform init failed: "+string(out), http.StatusInternalServerError)
+		if !tfSvc.IsInitialized() {
+			if err := tfSvc.Init(r.Context(), io.Discard); err != nil {
+				http.Error(w, "terraform init failed: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
 
-		var buf bytes.Buffer
-		graph := exec.CommandContext(r.Context(), "terraform", "graph")
-		graph.Dir = workDir
-		graph.Stdout = &buf
-		var errBuf bytes.Buffer
-		graph.Stderr = &errBuf
-		if err := graph.Run(); err != nil {
-			http.Error(w, "terraform graph failed: "+errBuf.String(), http.StatusInternalServerError)
+		dot, err := tfSvc.Graph(r.Context())
+		if err != nil {
+			http.Error(w, "terraform graph failed: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		result := dotToGraph(buf.String())
+		result := dotToGraph(dot)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
 	}

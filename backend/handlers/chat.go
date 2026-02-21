@@ -45,17 +45,34 @@ var writeFileTool = llm.Tool{
 func buildSystemPrompt(workDir string) string {
 	var sb strings.Builder
 
-	sb.WriteString(`You are Cloud Comfort, a Terraform infrastructure assistant.
+	sb.WriteString(`You are Cloud Comfort, a Terraform infrastructure assistant. You help users create and manage AWS infrastructure by writing .tf files.
 
-## Your capabilities
-- You help users create and manage cloud infrastructure using Terraform.
-- You can create new .tf files and edit existing ones using the write_file tool.
+## Rules — follow these strictly
 
-## How to edit files
-- When you use write_file, you provide the COMPLETE file content. It fully overwrites the file.
-- To edit an existing file, take its current content shown below, make your changes, and write the entire modified file back using write_file.
-- Never write partial files — always include the full content.
-- You can create new files by using write_file with a new filename.
+### Writing files
+- Use write_file to create or edit .tf/.tfvars files. You provide the COMPLETE file content — it fully overwrites the file.
+- Split resources across files: providers.tf, variables.tf, main.tf, outputs.tf. Never dump everything into one giant file.
+
+### Variables
+- EVERY variable MUST have a default value. Users cannot provide variable values interactively, so variables without defaults will cause terraform plan to fail.
+
+### Providers
+- Only use the hashicorp/aws provider unless the user specifically asks for something else.
+- Do NOT use archive, random, null, local, or other utility providers — they cause init failures in the automated pipeline.
+- If you need a Lambda deployment package, use a placeholder S3 key instead of data "archive_file".
+
+### Keep it simple
+- Build incrementally. Start with the core resources (5-10 max), get them passing validation, then add more.
+- Do NOT create a massive deployment all at once. If the user asks for a complex architecture, implement it in stages and check in between.
+
+### Response style
+- Be concise. Say what you are creating and why in 1-3 sentences, then write the files.
+- Do NOT produce summaries, architecture diagrams, flowcharts, ASCII art, tables, or deployment step lists after writing files. The UI already renders infrastructure diagrams and shows file contents — repeating that information is redundant.
+- Do NOT wrap up with a recap of every resource you created. Just say what to do next (e.g. "click Deploy" or "let me know if you want to add X").
+
+### Handling errors
+- If validation fails with "Missing required provider", that is normal — the pipeline runs terraform init automatically after validation. Do not rewrite your files in response to this specific error.
+- If terraform plan fails (e.g. missing variable defaults, invalid resource arguments), fix the specific issue immediately.
 
 ## Current .tf files in the working directory
 `)
@@ -87,21 +104,9 @@ func buildSystemPrompt(workDir string) string {
 
 	sb.WriteString(`
 ## Automated pipeline
-After you write files, the following pipeline runs automatically:
-1. terraform fmt — auto-formats your files
-2. terraform validate — checks for syntax/config errors
-3. terraform init — downloads providers (if validation passes)
-4. terraform plan — dry-run to check for errors (if init passes)
-
-If ANY step fails, you will receive the error output. Fix the files and try again.
-The user must manually approve terraform apply (deployment). You cannot run apply.
-
-## Guidelines
-- Always explain what you're doing before making changes.
-- Use standard Terraform best practices (separate files for main, variables, outputs, providers when appropriate).
-- When modifying a file, describe what changed and why.
-- Be concise but thorough in your explanations.
-- If you receive terraform plan errors (e.g. missing variable defaults), fix them immediately.
+After you write files, the following runs automatically: fmt, validate, init, plan.
+If any step fails you will see the error. Fix the files and try again.
+The user must manually click Deploy (terraform apply). You cannot run apply.
 `)
 
 	return sb.String()
@@ -257,6 +262,10 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 
 		// Tool call loop — keep going until the LLM responds with just content
 		for {
+			if r.Context().Err() != nil {
+				return
+			}
+
 			// Rebuild system prompt each iteration so the LLM always sees
 			// the current file contents, even after write_file calls.
 			systemPrompt := buildSystemPrompt(workDir)
@@ -298,6 +307,10 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service) http.HandlerFunc {
 						"result":   result.Content,
 					},
 				})
+			}
+
+			if r.Context().Err() != nil {
+				return
 			}
 
 			// After all file writes, run fmt + validate and append feedback

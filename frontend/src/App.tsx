@@ -86,6 +86,7 @@ function App() {
   const [planReady, setPlanReady] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -137,6 +138,9 @@ function App() {
     if (!overrideMsg) setMessage("");
     setSending(true);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setChatLog((prev) => [
       ...prev,
       { role: "user", segments: [{ type: "text", content: userMsg }] },
@@ -167,6 +171,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg, history }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -179,7 +184,6 @@ function App() {
           };
           return updated;
         });
-        setSending(false);
         return;
       }
 
@@ -304,18 +308,37 @@ function App() {
           }
         }
       }
-    } catch {
-      setChatLog((prev) => {
-        const updated = [...prev];
-        updated[assistantIdx] = {
-          role: "error",
-          segments: [{ type: "text", content: "Failed to reach backend" }],
-        };
-        return updated;
-      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // User clicked Stop — save partial content so the LLM has context
+        if (contentAccumulated) {
+          setHistory((prev) => [
+            ...prev,
+            { role: "user", content: userMsg },
+            { role: "assistant", content: contentAccumulated + "\n[stopped by user]" },
+          ]);
+        }
+      } else {
+        setChatLog((prev) => {
+          const updated = [...prev];
+          updated[assistantIdx] = {
+            role: "error",
+            segments: [{ type: "text", content: "Failed to reach backend" }],
+          };
+          return updated;
+        });
+      }
+    } finally {
+      abortRef.current = null;
+      setSending(false);
     }
+  };
 
-    setSending(false);
+  const stopGeneration = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
   };
 
   const viewFile = async (name: string) => {
@@ -511,9 +534,11 @@ function App() {
               placeholder="Describe your infrastructure..."
               disabled={sending}
             />
-            <button onClick={() => sendMessage()} disabled={sending}>
-              {sending ? "..." : "Send"}
-            </button>
+            {sending ? (
+              <button className="stop-btn" onClick={stopGeneration}>Stop</button>
+            ) : (
+              <button onClick={() => sendMessage()}>Send</button>
+            )}
           </div>
         </div>
 
