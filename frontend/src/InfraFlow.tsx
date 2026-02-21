@@ -4,7 +4,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   Node,
   Edge,
   Position,
@@ -55,24 +54,30 @@ const groupCfg: Record<string, { bg: string; border: string; text: string; dashe
 
 // ─── Custom nodes ────────────────────────────────────────────────────────────
 function ResourceNode({ data }: NodeProps) {
-  const s = catStyle[(data as any).category] ?? catStyle.other
+  const d = data as any
+  const s = catStyle[d.category] ?? catStyle.other
   return (
-    <div style={{
-      background: s.bg,
-      border: `2px solid ${s.border}`,
-      borderRadius: 6,
-      padding: '8px 10px',
-      color: s.text,
-      fontSize: 11,
-      fontWeight: 600,
-      width: NODE_W,
-      textAlign: 'center',
-      lineHeight: 1.35,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
-    }}>
+    <div
+      className="resource-node-inner"
+      style={{
+        background: s.bg,
+        border: `2px solid ${s.border}`,
+        borderRadius: 6,
+        padding: '8px 10px',
+        color: s.text,
+        fontSize: 11,
+        fontWeight: 600,
+        width: NODE_W,
+        textAlign: 'center',
+        lineHeight: 1.35,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
+        // CSS vars so the stylesheet can reference the category colour
+        ['--node-border' as any]: s.border,
+      }}
+    >
       <Handle type="target" position={Position.Top}
         style={{ background: s.border, width: 8, height: 8 }} />
-      {(data as any).label}
+      {d.label}
       <Handle type="source" position={Position.Bottom}
         style={{ background: s.border, width: 8, height: 8 }} />
     </div>
@@ -303,11 +308,6 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
     >
       <Background color="#1e2330" variant={BackgroundVariant.Dots} gap={20} />
       <Controls style={{ background: '#1a1d27', borderColor: '#2a2d35' }} />
-      <MiniMap
-        style={{ background: '#1a1d27', borderColor: '#2a2d35' }}
-        nodeColor={n => catStyle[(n.data as any)?.category]?.bg ?? '#263238'}
-        maskColor="rgba(13,15,20,0.7)"
-      />
     </ReactFlow>
   )
 }

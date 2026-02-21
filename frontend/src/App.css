@@ -148,6 +148,29 @@ header h1 {
   position: relative;
 }
 
+/* Contain React Flow so it never leaks outside the diagram panel */
+.diagram-output .react-flow {
+  position: absolute;
+  inset: 0;
+}
+
+/* Resource node hover — pure CSS */
+.diagram-output .react-flow__node-resource {
+  overflow: visible;
+}
+
+.diagram-output .react-flow__node-resource .resource-node-inner {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: default;
+}
+
+.diagram-output .react-flow__node-resource:hover .resource-node-inner {
+  transform: scale(1.1);
+  box-shadow:
+    0 0 0 3px var(--node-border, #78909c),
+    0 8px 24px rgba(0, 0, 0, 0.7);
+}
+
 /* --- Files tab --- */
 
 .files-panel {
