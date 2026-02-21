@@ -337,13 +337,20 @@ func dotToMermaid(dot string) string {
 	sb.WriteString("  classDef security fill:#b71c1c,stroke:#ef5350,stroke-width:2px,color:#ffebee,font-weight:bold\n")
 	sb.WriteString("  classDef other fill:#263238,stroke:#78909c,stroke-width:2px,color:#eceff1,font-weight:bold\n")
 
+	// Track subgraph IDs for styling
+	var vpcSubgraphIDs []string
+	var subnetSubgraphIDs []string
+
 	// Render VPC subgraphs — nodes defined INSIDE subgraphs so Mermaid places them correctly
 	for _, vpc := range vpcs {
 		vpcID := nodeIDs[vpc]
-		sb.WriteString(fmt.Sprintf("  subgraph %s_sg[\"%s\"]\n", vpcID, humanLabel(vpc)))
+		vpcSgID := vpcID + "_sg"
+		vpcSubgraphIDs = append(vpcSubgraphIDs, vpcSgID)
+		sb.WriteString(fmt.Sprintf("  subgraph %s[\"%s\"]\n", vpcSgID, humanLabel(vpc)))
 
 		for _, subnet := range vpcSubnets[vpc] {
 			subnetID := nodeIDs[subnet]
+			subnetSgID := subnetID + "_sg"
 
 			// Collect resources inside this subnet
 			var subnetResources []string
@@ -354,15 +361,14 @@ func dotToMermaid(dot string) string {
 			}
 
 			if len(subnetResources) > 0 {
-				// Non-empty subnet: nested subgraph containing its resources
-				sb.WriteString(fmt.Sprintf("    subgraph %s_sg[\"%s\"]\n", subnetID, humanLabel(subnet)))
+				subnetSubgraphIDs = append(subnetSubgraphIDs, subnetSgID)
+				sb.WriteString(fmt.Sprintf("    subgraph %s[\"%s\"]\n", subnetSgID, humanLabel(subnet)))
 				for _, label := range subnetResources {
 					cat := resourceCategory(strings.SplitN(label, ".", 2)[0])
 					sb.WriteString("      " + nodeDef(nodeIDs[label], label, cat))
 				}
 				sb.WriteString("    end\n")
 			} else {
-				// Empty subnet: plain node inside the VPC box
 				sb.WriteString("    " + nodeDef(subnetID, subnet, "networking"))
 			}
 		}
@@ -400,6 +406,17 @@ func dotToMermaid(dot string) string {
 			continue
 		}
 		sb.WriteString(fmt.Sprintf("  %s --> %s\n", nodeIDs[e.from], nodeIDs[e.to]))
+	}
+
+	// Subgraph styles — transparent fills so the hierarchy is visible but not heavy
+	for _, id := range vpcSubgraphIDs {
+		sb.WriteString(fmt.Sprintf("  style %s fill:#0d47a1,fill-opacity:0.15,stroke:#42a5f5,stroke-width:2px,color:#e3f2fd\n", id))
+	}
+	for _, id := range subnetSubgraphIDs {
+		sb.WriteString(fmt.Sprintf("  style %s fill:#0d47a1,fill-opacity:0.08,stroke:#90caf9,stroke-width:1px,stroke-dasharray:4,color:#e3f2fd\n", id))
+	}
+	if len(globals) > 0 {
+		sb.WriteString("  style global fill:#37474f,fill-opacity:0.2,stroke:#78909c,stroke-width:1px,stroke-dasharray:4,color:#eceff1\n")
 	}
 
 	return sb.String()
