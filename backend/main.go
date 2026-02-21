@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"cloud-comfort/backend/handlers"
 	"cloud-comfort/backend/llm"
@@ -14,13 +15,12 @@ import (
 	"github.com/rs/cors"
 )
 
-const workDir = "./workdir"
-
 func main() {
 	// Load .env file — check current dir and parent (project root)
 	_ = godotenv.Load()
 	_ = godotenv.Load("../.env")
 
+	workDir := filepath.Join("workdir")
 	tfSvc, err := terraform.NewService(workDir)
 	if err != nil {
 		log.Fatal(err)
@@ -53,6 +53,8 @@ func main() {
 
 	// Chat endpoint (SSE streaming with LLM + validation)
 	mux.HandleFunc("POST /api/chat", handlers.HandleChat(llmClient, tfSvc))
+	// Diagram generation
+	mux.HandleFunc("POST /api/diagram", handlers.HandleDiagram(workDir))
 
 	// Health check
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -60,18 +62,14 @@ func main() {
 		fmt.Fprintf(w, `{"status":"ok"}`)
 	})
 
-	// CORS for frontend dev server
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type"},
-		AllowCredentials: true,
+		AllowedOrigins: []string{"http://localhost:5173"},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders: []string{"Content-Type"},
 	})
 
-	handler := c.Handler(mux)
-
 	log.Println("Backend listening on :8080")
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	if err := http.ListenAndServe(":8080", c.Handler(mux)); err != nil {
 		log.Fatal(err)
 	}
 }
