@@ -265,11 +265,19 @@ export interface ApiEdge {
 }
 
 // ─── Layout constants ────────────────────────────────────────────────────────
-const NODE_W = 180
+const MIN_NODE_W = 80
 const NODE_H = 72
 const GROUP_PAD = 24
 const GROUP_HEADER = 36
 const GROUP_GAP = 48
+const CHAR_PX = 6.6 // approx px per char at 11px bold
+
+function estimateNodeWidth(label: string): number {
+  const name = label.includes(': ') ? label.split(': ')[1] : label
+  const textW = name.length * CHAR_PX
+  const contentW = Math.max(22, textW) // icon is 22px wide
+  return Math.max(MIN_NODE_W, Math.ceil(contentW + 24)) // +24 for padding + border
+}
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 const catStyle: Record<string, { bg: string; border: string; text: string }> = {
@@ -321,7 +329,7 @@ function ResourceNode({ data, id }: NodeProps) {
         color: s.text,
         fontSize: 11,
         fontWeight: 600,
-        width: NODE_W,
+        minWidth: MIN_NODE_W,
         textAlign: 'center',
         lineHeight: 1.35,
         boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
@@ -329,6 +337,7 @@ function ResourceNode({ data, id }: NodeProps) {
         flexDirection: 'column',
         alignItems: 'center',
         gap: 4,
+        whiteSpace: 'nowrap',
         ['--node-border' as any]: s.border,
       }}
       onMouseEnter={onMouseEnter}
@@ -404,6 +413,7 @@ const nodeTypes = { resource: ResourceNode, infraGroup: GroupNode }
 function dagreLayout(
   ids: string[],
   edges: ApiEdge[],
+  widths: Record<string, number>,
 ): { pos: Record<string, { x: number; y: number }>; w: number; h: number } {
   if (ids.length === 0) return { pos: {}, w: 0, h: 0 }
 
@@ -411,7 +421,7 @@ function dagreLayout(
   g.setDefaultEdgeLabel(() => ({}))
   g.setGraph({ rankdir: 'TB', ranksep: 50, nodesep: 36, marginx: 0, marginy: 0 })
 
-  for (const id of ids) g.setNode(id, { width: NODE_W, height: NODE_H })
+  for (const id of ids) g.setNode(id, { width: widths[id] ?? MIN_NODE_W, height: NODE_H })
 
   const idSet = new Set(ids)
   for (const e of edges) {
@@ -427,11 +437,12 @@ function dagreLayout(
   for (const id of ids) {
     const n = g.node(id)
     if (!n) continue
-    const x = n.x - NODE_W / 2
+    const nw = widths[id] ?? MIN_NODE_W
+    const x = n.x - nw / 2
     const y = n.y - NODE_H / 2
     raw[id] = { x, y }
     minX = Math.min(minX, x);      minY = Math.min(minY, y)
-    maxX = Math.max(maxX, x + NODE_W); maxY = Math.max(maxY, y + NODE_H)
+    maxX = Math.max(maxX, x + nw); maxY = Math.max(maxY, y + NODE_H)
   }
 
   const pos: Record<string, { x: number; y: number }> = {}
@@ -446,6 +457,14 @@ function dagreLayout(
 function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
   const byId: Record<string, ApiNode> = {}
   for (const n of apiNodes) byId[n.id] = n
+
+  // Pre-compute widths for all resource nodes
+  const nodeWidths: Record<string, number> = {}
+  for (const n of apiNodes) {
+    if (n.kind === 'resource') {
+      nodeWidths[n.id] = estimateNodeWidth(n.label)
+    }
+  }
 
   const childrenOf: Record<string, string[]> = {}
   for (const n of apiNodes) {
@@ -479,8 +498,8 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
 
       for (const sid of subnets) {
         const sResIds = resKids(sid)
-        const { pos, w, h } = dagreLayout(sResIds, apiEdges)
-        const sw = Math.max(w + GROUP_PAD * 2, NODE_W + GROUP_PAD * 2)
+        const { pos, w, h } = dagreLayout(sResIds, apiEdges, nodeWidths)
+        const sw = Math.max(w + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2)
         const sh = h + GROUP_PAD * 2 + GROUP_HEADER
         subRowH = Math.max(subRowH, sh)
 
@@ -508,7 +527,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
       }
 
       // VPC-direct resources below subnets
-      const { pos: vPos, w: vW, h: vH } = dagreLayout(vpcDirect, apiEdges)
+      const { pos: vPos, w: vW, h: vH } = dagreLayout(vpcDirect, apiEdges, nodeWidths)
       const directY = GROUP_HEADER + GROUP_PAD + subRowH + (subRowH > 0 ? GROUP_GAP : 0)
 
       for (const rid of vpcDirect) {
@@ -522,14 +541,14 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
         } as Node)
       }
 
-      tgW = Math.max(subX - GROUP_GAP + GROUP_PAD, vW + GROUP_PAD * 2, NODE_W + GROUP_PAD * 2)
+      tgW = Math.max(subX - GROUP_GAP + GROUP_PAD, vW + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2)
       tgH = directY + (vH > 0 ? vH + GROUP_PAD : GROUP_PAD)
 
     } else {
       // ── Global / flat group ─────────────────────────────────────────────────
       const resIds = resKids(tg.id)
-      const { pos, w, h } = dagreLayout(resIds, apiEdges)
-      tgW = Math.max(w + GROUP_PAD * 2, NODE_W + GROUP_PAD * 2)
+      const { pos, w, h } = dagreLayout(resIds, apiEdges, nodeWidths)
+      tgW = Math.max(w + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2)
       tgH = h + GROUP_PAD * 2 + GROUP_HEADER
 
       for (const rid of resIds) {

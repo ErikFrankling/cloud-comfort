@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -38,9 +40,6 @@ var (
 	cidrRe = regexp.MustCompile(`resource\s+"(aws_vpc|aws_subnet)"\s+"([^"]+)"[^}]*cidr_block\s*=\s*"([^"]+)"`)
 )
 
-<<<<<<< HEAD
-func HandleDiagram(tfSvc *terraform.Service) http.HandlerFunc {
-=======
 func extractCIDRs(workDir string) map[string]string {
 	cidrs := make(map[string]string)
 	files, err := os.ReadDir(workDir)
@@ -65,8 +64,7 @@ func extractCIDRs(workDir string) map[string]string {
 	return cidrs
 }
 
-func HandleDiagram(workDir string) http.HandlerFunc {
->>>>>>> 10f9e501985fb466bd3064c1107a41aa5eeb2809
+func HandleDiagram(tfSvc *terraform.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !tfSvc.IsInitialized() {
 			if err := tfSvc.Init(r.Context(), io.Discard); err != nil {
@@ -81,11 +79,7 @@ func HandleDiagram(workDir string) http.HandlerFunc {
 			return
 		}
 
-<<<<<<< HEAD
-		result := dotToGraph(dot)
-=======
-		result := dotToGraph(buf.String(), extractCIDRs(workDir))
->>>>>>> 10f9e501985fb466bd3064c1107a41aa5eeb2809
+		result := dotToGraph(dot, extractCIDRs(tfSvc.WorkDir()))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
 	}
