@@ -620,23 +620,50 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
     }))
   }, [selectedId])
 
+  // ── Summary bar data ────────────────────────────────────────────────────────
+  const resources = apiNodes.filter(n => n.kind === 'resource')
+  const cats = ['networking', 'compute', 'storage', 'database', 'security', 'other'] as const
+  const catLabels: Record<string, string> = {
+    networking: 'Networking', compute: 'Compute', storage: 'Storage',
+    database: 'Database', security: 'Security', other: 'Other',
+  }
+  const summary = cats
+    .map(c => ({ cat: c, count: resources.filter(n => n.category === c).length }))
+    .filter(x => x.count > 0)
+
   return (
-    <ReactFlow
-      nodes={rfNodes}
-      edges={rfEdges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      nodeTypes={nodeTypes}
-      fitView
-      fitViewOptions={{ padding: 0.12 }}
-      minZoom={0.05}
-      nodesDraggable={false}
-      style={{ background: '#0d0f14' }}
-      onNodeClick={(_, node) => setSelectedId(id => id === node.id ? null : node.id)}
-      onPaneClick={() => setSelectedId(null)}
-    >
-      <Background color="#1e2330" variant={BackgroundVariant.Dots} gap={20} />
-      <Controls style={{ background: '#1a1d27', borderColor: '#2a2d35' }} />
-    </ReactFlow>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {resources.length > 0 && (
+        <div className="diagram-summary-bar">
+          <span className="diagram-summary-total">{resources.length} resources</span>
+          <span className="diagram-summary-divider" />
+          {summary.map(({ cat, count }) => (
+            <span key={cat} className="diagram-summary-item">
+              <span className="diagram-summary-dot" style={{ background: catStyle[cat]?.border }} />
+              {count} {catLabels[cat]}
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <ReactFlow
+          nodes={rfNodes}
+          edges={rfEdges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.12 }}
+          minZoom={0.05}
+          nodesDraggable={false}
+          style={{ background: '#0d0f14' }}
+          onNodeClick={(_, node) => setSelectedId(id => id === node.id ? null : node.id)}
+          onPaneClick={() => setSelectedId(null)}
+        >
+          <Background color="#1e2330" variant={BackgroundVariant.Dots} gap={20} />
+          <Controls style={{ background: '#1a1d27', borderColor: '#2a2d35' }} />
+        </ReactFlow>
+      </div>
+    </div>
   )
 }
