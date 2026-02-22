@@ -18,7 +18,8 @@ node_modules/
 *.tfstate.backup
 .terraform/
 *.tfvars
-workdir/
+workdir/*
+!workdir/.terraform.lock.hcl
 
 # IDE
 .idea/

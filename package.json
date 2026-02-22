@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "aws-react-icons": "^3.2.0",
+    "html-to-image": "^1.11.13",
     "mermaid": "^11.12.3"
   }
 }
