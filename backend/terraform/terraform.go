@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -19,7 +20,6 @@ import (
 type Service struct {
 	workDir  string
 	execPath string
-	env      map[string]string
 	mu       sync.Mutex
 }
 
@@ -43,18 +43,7 @@ func NewService(workDir string) (*Service, error) {
 	return &Service{
 		workDir:  absWorkDir,
 		execPath: execPath,
-		env:      make(map[string]string),
 	}, nil
-}
-
-// SetEnv sets environment variables that will be passed to every terraform
-// invocation. Use this for cloud auth secrets (AWS_ACCESS_KEY_ID, etc).
-func (s *Service) SetEnv(env map[string]string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for k, v := range env {
-		s.env[k] = v
-	}
 }
 
 // WorkDir returns the absolute path to the terraform working directory.
@@ -63,7 +52,9 @@ func (s *Service) WorkDir() string {
 }
 
 // newTF creates a fresh tfexec.Terraform instance with stdout piped to
-// the provided writer and environment variables applied.
+// the provided writer. Environment variables are inherited from the process
+// env (set by setCloudEnv in main.go) — we do NOT call tf.SetEnv because
+// it replaces the entire parent env and blocks TF_VAR_ keys.
 func (s *Service) newTF(output io.Writer) (*tfexec.Terraform, error) {
 	tf, err := tfexec.NewTerraform(s.workDir, s.execPath)
 	if err != nil {
@@ -73,12 +64,6 @@ func (s *Service) newTF(output io.Writer) (*tfexec.Terraform, error) {
 	if output != nil {
 		tf.SetStdout(output)
 		tf.SetStderr(output)
-	}
-
-	if len(s.env) > 0 {
-		if err := tf.SetEnv(s.env); err != nil {
-			return nil, fmt.Errorf("setting env vars: %w", err)
-		}
 	}
 
 	return tf, nil
@@ -188,6 +173,39 @@ func (s *Service) Graph(ctx context.Context) (string, error) {
 	}
 
 	return dot, nil
+}
+
+// Output reads terraform output values. Returns a map of output names to their
+// string values (sensitive values are redacted).
+func (s *Service) Output(ctx context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tf, err := s.newTF(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	meta, err := tf.Output(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("terraform output: %w", err)
+	}
+
+	result := make(map[string]string, len(meta))
+	for k, v := range meta {
+		if v.Sensitive {
+			result[k] = "(sensitive)"
+			continue
+		}
+		// Value is JSON — try to unquote strings, otherwise use raw JSON
+		var s string
+		if err := json.Unmarshal(v.Value, &s); err == nil {
+			result[k] = s
+		} else {
+			result[k] = string(v.Value)
+		}
+	}
+	return result, nil
 }
 
 // Apply runs terraform apply in the working directory.

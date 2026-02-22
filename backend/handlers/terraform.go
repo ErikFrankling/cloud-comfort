@@ -119,6 +119,11 @@ func HandleApply(svc *terraform.Service) http.HandlerFunc {
 			return
 		}
 
-		sendDone(w, sse.f, map[string]any{"done": true})
+		// Read terraform outputs after successful apply
+		donePayload := map[string]any{"done": true}
+		if outputs, err := svc.Output(r.Context()); err == nil && len(outputs) > 0 {
+			donePayload["outputs"] = outputs
+		}
+		sendDone(w, sse.f, donePayload)
 	}
 }

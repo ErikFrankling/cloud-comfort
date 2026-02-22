@@ -19,10 +19,13 @@ type StreamCallbacks struct {
 
 // Config holds the OpenAI-compatible API configuration.
 type Config struct {
-	BaseURL   string // e.g. https://openrouter.ai/api/v1
-	APIKey    string
-	Model     string // e.g. openai/gpt-5.2
-	Streaming bool
+	BaseURL       string // e.g. https://openrouter.ai/api/v1
+	APIKey        string
+	Model         string // e.g. openai/gpt-5.2
+	Streaming     bool
+	MaxTokens     int    // 0 = provider default
+	ProviderSort  string // "throughput", "latency", or "price" (OpenRouter)
+	Quantizations string // comma-separated: "fp16,fp8,int4" (OpenRouter)
 }
 
 // Client is an OpenAI-compatible chat completions client.
@@ -74,12 +77,21 @@ type ToolFunction struct {
 	Parameters  json.RawMessage `json:"parameters"`
 }
 
+// providerPreferences controls OpenRouter provider routing.
+type providerPreferences struct {
+	AllowFallbacks bool     `json:"allow_fallbacks"`
+	Sort           string   `json:"sort,omitempty"`           // "price", "throughput", "latency"
+	Quantizations  []string `json:"quantizations,omitempty"`  // e.g. ["fp16","fp8","int8","int4"]
+}
+
 // chatRequest is the request body for chat completions.
 type chatRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Tools    []Tool    `json:"tools,omitempty"`
 	Stream   bool      `json:"stream"`
+	MaxTokens int      `json:"max_tokens,omitempty"`
+	Provider  *providerPreferences `json:"provider,omitempty"`
 }
 
 // chatResponse is the non-streaming response.
@@ -111,6 +123,36 @@ type toolDelta struct {
 	} `json:"function"`
 }
 
+// buildRequest constructs a chatRequest with provider preferences from config.
+func (c *Client) buildRequest(messages []Message, tools []Tool, stream bool) chatRequest {
+	req := chatRequest{
+		Model:     c.cfg.Model,
+		Messages:  messages,
+		Tools:     tools,
+		Stream:    stream,
+		MaxTokens: c.cfg.MaxTokens,
+	}
+
+	// Build OpenRouter provider preferences if configured
+	if c.cfg.ProviderSort != "" || c.cfg.Quantizations != "" {
+		pref := &providerPreferences{AllowFallbacks: true}
+		if c.cfg.ProviderSort != "" {
+			pref.Sort = c.cfg.ProviderSort
+		}
+		if c.cfg.Quantizations != "" {
+			for _, q := range strings.Split(c.cfg.Quantizations, ",") {
+				q = strings.TrimSpace(q)
+				if q != "" {
+					pref.Quantizations = append(pref.Quantizations, q)
+				}
+			}
+		}
+		req.Provider = pref
+	}
+
+	return req
+}
+
 // ChatStream sends a streaming chat completion request. Content and reasoning
 // deltas are forwarded via callbacks as they arrive. Returns the full
 // accumulated assistant message.
@@ -119,12 +161,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 		return c.Chat(ctx, messages, tools)
 	}
 
-	body, err := json.Marshal(chatRequest{
-		Model:    c.cfg.Model,
-		Messages: messages,
-		Tools:    tools,
-		Stream:   true,
-	})
+	body, err := json.Marshal(c.buildRequest(messages, tools, true))
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
@@ -229,12 +266,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 
 // Chat sends a non-streaming chat completion request.
 func (c *Client) Chat(ctx context.Context, messages []Message, tools []Tool) (*Message, error) {
-	body, err := json.Marshal(chatRequest{
-		Model:    c.cfg.Model,
-		Messages: messages,
-		Tools:    tools,
-		Stream:   false,
-	})
+	body, err := json.Marshal(c.buildRequest(messages, tools, false))
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}

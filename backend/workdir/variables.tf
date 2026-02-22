@@ -1,32 +1,32 @@
-variable "region" {
-  description = "AWS region for resources"
+variable "aws_region" {
+  description = "AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "eu-north-1"
 }
 
-variable "environment" {
-  description = "Environment name (dev, staging, prod)"
+variable "bucket_name" {
+  description = "Base name for S3 bucket (will have random suffix added)"
   type        = string
-  default     = "dev"
+  default     = "cleversel-website-bucket"
 }
 
-variable "project_name" {
-  description = "Name prefix for all resources"
+variable "github_token" {
+  description = "GitHub token for managing repository"
   type        = string
-  default     = "my-project"
+  sensitive   = true
+  default     = ""
 }
 
-variable "tags" {
-  description = "Tags to apply to all resources"
-  type        = map(string)
-  default = {
-    Environment = "dev"
-    Project     = "my-project"
-  }
+variable "aws_access_key_id" {
+  description = "AWS access key for GitHub Actions"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
-variable "name_suffix" {
-  description = "Unique suffix for resource names (change if resources already exist)"
+variable "aws_secret_access_key" {
+  description = "AWS secret key for GitHub Actions"
   type        = string
-  default     = "v2"
+  sensitive   = true
+  default     = ""
 }

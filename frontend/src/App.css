@@ -154,6 +154,170 @@ header {
   background: #f44336;
 }
 
+.chat-input.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* --- GitHub Repo Input Overlay --- */
+
+.repo-input-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 17, 23, 0.95);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.repo-input-container {
+  background: #1a1d27;
+  border: 1px solid #2a2d35;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.repo-input-container h3 {
+  color: #8ab4f8;
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.repo-input-container p {
+  color: #888;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+}
+
+.repo-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.repo-input {
+  flex: 1;
+  background: #0f1117;
+  border: 1px solid #2a2d35;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: #e0e0e0;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.repo-input:focus {
+  border-color: #8ab4f8;
+}
+
+.repo-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.repo-verify-btn {
+  background: #8ab4f8;
+  color: #0f1117;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.repo-verify-btn:hover:not(:disabled) {
+  background: #aecbfa;
+  transform: scale(1.02);
+}
+
+.repo-verify-btn:disabled {
+  background: #2a2d35;
+  color: #555;
+  cursor: not-allowed;
+}
+
+.repo-error {
+  color: #ef5350;
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  background: rgba(239, 83, 80, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(239, 83, 80, 0.2);
+}
+
+/* --- Active Repo Header --- */
+
+.repo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: rgba(138, 180, 248, 0.08);
+  border-bottom: 1px solid rgba(138, 180, 248, 0.2);
+  flex-shrink: 0;
+}
+
+.repo-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.repo-icon {
+  font-size: 1rem;
+}
+
+.repo-name {
+  font-weight: 600;
+  color: #8ab4f8;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.repo-meta {
+  color: #666;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.repo-reset-btn {
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.repo-reset-btn:hover {
+  background: rgba(239, 83, 80, 0.1);
+  color: #ef5350;
+}
+
+.chat-log.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 /* --- Right Panel (tabs) --- */
 
 .right-panel,
@@ -1103,3 +1267,49 @@ header {
 /* Deploy button hover lift */
 .deploy-btn { transition: background 0.2s, transform 0.1s, box-shadow 0.15s; }
 .deploy-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(76,175,80,0.25); }
+
+/* --- Terraform Outputs --- */
+.deploy-outputs {
+  margin: 0.75rem 0;
+  border: 1px solid #2a4a2a;
+  border-radius: 6px;
+  background: #131e15;
+  overflow: hidden;
+}
+
+.deploy-outputs-title {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #81c784;
+  border-bottom: 1px solid #2a4a2a;
+}
+
+.deploy-output-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid rgba(42, 74, 42, 0.3);
+  font-size: 0.8rem;
+}
+
+.deploy-output-item:last-child {
+  border-bottom: none;
+}
+
+.deploy-output-key {
+  font-family: monospace;
+  color: #8ab4f8;
+  font-weight: 500;
+}
+
+.deploy-output-value {
+  font-family: monospace;
+  color: #e0e0e0;
+  word-break: break-all;
+  text-align: right;
+  margin-left: 1rem;
+}

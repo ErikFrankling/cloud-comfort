@@ -105,12 +105,19 @@ function App() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [failedStep, setFailedStep] = useState<"init" | "apply" | null>(null);
   const [planReady, setPlanReady] = useState(false);
+  const [deployOutputs, setDeployOutputs] = useState<Record<string, string> | null>(null);
   const [filesSidebarOpen, setFilesSidebarOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [chatWidth, setChatWidth] = useState(400);
   const dragging = useRef(false);
+
+  // GitHub repo selection state
+  const [repoUrl, setRepoUrl] = useState("");
+  const [repoContext, setRepoContext] = useState<any>(null);
+  const [verifyingRepo, setVerifyingRepo] = useState(false);
+  const [repoError, setRepoError] = useState<string | null>(null);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -232,7 +239,7 @@ function App() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, history }),
+        body: JSON.stringify({ message: userMsg, history, repo_context: repoContext }),
         signal: controller.signal,
       });
 
@@ -518,6 +525,9 @@ function App() {
               }
               if (data.done) {
                 setDeployStatus("success");
+                if (data.outputs) {
+                  setDeployOutputs(data.outputs);
+                }
                 return Promise.resolve(data);
               }
             } catch {
@@ -544,6 +554,7 @@ function App() {
     setDeployError(null);
     setFailedStep(null);
     setPlanReady(false);
+    setDeployOutputs(null);
 
     try {
       // Init is safe and idempotent — ensures providers are ready
@@ -569,6 +580,59 @@ function App() {
 
   const formatSize = (b: number) => b < 1024 ? `${b}B` : `${(b / 1024).toFixed(1)}K`;
 
+  // Extract owner/repo from GitHub URL
+  const extractRepoFromUrl = (url: string): string | null => {
+    const match = url.match(/github\.com\/([^\/]+\/[^\/]+)/);
+    return match ? match[1].replace(/\.git$/, '') : null;
+  };
+
+  // Verify GitHub repo
+  const verifyRepo = async () => {
+    const repo = extractRepoFromUrl(repoUrl);
+    if (!repo) {
+      setRepoError("Invalid GitHub URL. Format: https://github.com/owner/repo");
+      return;
+    }
+
+    setVerifyingRepo(true);
+    setRepoError(null);
+
+    try {
+      const res = await fetch("/api/github/explore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo, branch: "main" }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const data = await res.json();
+      
+      if (!data.valid) {
+        setRepoError(data.error || "Failed to access repository");
+        setVerifyingRepo(false);
+        return;
+      }
+
+      setRepoContext(data);
+      setVerifyingRepo(false);
+    } catch (err: any) {
+      setRepoError(err.message || "Failed to verify repository");
+      setVerifyingRepo(false);
+    }
+  };
+
+  // Reset repo selection
+  const resetRepo = () => {
+    setRepoUrl("");
+    setRepoContext(null);
+    setRepoError(null);
+    setChatLog([]);
+    setHistory([]);
+  };
+
   return (
     <div className="app">
       <header>
@@ -580,7 +644,52 @@ function App() {
       </header>
       <div className="panels">
         <div className="chat-panel" style={{ width: chatWidth }}>
-          <div className="chat-log">
+          {/* GitHub Repo Input Overlay */}
+          {!repoContext && (
+            <div className="repo-input-overlay">
+              <div className="repo-input-container">
+                <h3>🔗 Connect GitHub Repository</h3>
+                <p>Paste a GitHub repository URL to get started</p>
+                <div className="repo-input-wrapper">
+                  <input
+                    type="text"
+                    value={repoUrl}
+                    onChange={(e) => setRepoUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && verifyRepo()}
+                    placeholder="https://github.com/owner/repo"
+                    disabled={verifyingRepo}
+                    className="repo-input"
+                  />
+                  <button 
+                    onClick={verifyRepo} 
+                    disabled={verifyingRepo || !repoUrl.trim()}
+                    className="repo-verify-btn"
+                  >
+                    {verifyingRepo ? "Verifying..." : "Connect"}
+                  </button>
+                </div>
+                {repoError && (
+                  <div className="repo-error">{repoError}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Active Repo Header */}
+          {repoContext && (
+            <div className="repo-header">
+              <div className="repo-info">
+                <span className="repo-icon">📁</span>
+                <span className="repo-name">{repoContext.repo}</span>
+                <span className="repo-meta">{repoContext.metadata?.language} • {repoContext.file_tree?.length} files</span>
+              </div>
+              <button onClick={resetRepo} className="repo-reset-btn" title="Switch repository">
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className={`chat-log ${!repoContext ? 'disabled' : ''}`}>
             {chatLog.map((msg, i) => (
               <div key={i} className={`chat-msg ${msg.role}`}>
                 <div className="chat-msg-avatar">
@@ -610,14 +719,14 @@ function App() {
             ))}
             <div ref={chatEndRef} />
           </div>
-          <div className="chat-input">
+          <div className={`chat-input ${!repoContext ? 'disabled' : ''}`}>
             <div className="chat-input-wrapper">
               <input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Describe your infrastructure..."
-                disabled={sending}
+                placeholder={repoContext ? "Describe your infrastructure..." : "Connect a repository to start chatting..."}
+                disabled={sending || !repoContext}
               />
               {sending ? (
                 <button className="chat-stop-btn" onClick={stopGeneration} title="Stop">
@@ -837,6 +946,17 @@ function App() {
                     {line}
                   </div>
                 ))
+              )}
+              {deployOutputs && Object.keys(deployOutputs).length > 0 && (
+                <div className="deploy-outputs">
+                  <div className="deploy-outputs-title">Outputs</div>
+                  {Object.entries(deployOutputs).map(([key, value]) => (
+                    <div key={key} className="deploy-output-item">
+                      <span className="deploy-output-key">{key}</span>
+                      <span className="deploy-output-value">{value}</span>
+                    </div>
+                  ))}
+                </div>
               )}
               <div ref={logsEndRef} />
             </div>
