@@ -1216,4 +1216,30 @@ header {
 .reasoning-block summary::before { content: '▸'; font-size: 0.7rem; transition: transform 0.2s; }
 .reasoning-block[open] summary::before { transform: rotate(90deg); }
 
+/* --- Files Sidebar --- */
+
+.files-sidebar {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #2a2d35;
+  background: #0f1117;
+  overflow: hidden;
+}
+
+.files-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #2a2d35;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+}
+
 /* Deploy button hover lift */

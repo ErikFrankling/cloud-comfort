@@ -105,7 +105,6 @@ function App() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [failedStep, setFailedStep] = useState<"init" | "apply" | null>(null);
   const [planReady, setPlanReady] = useState(false);
-  const [filesSidebarOpen, setFilesSidebarOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -572,16 +571,6 @@ function App() {
     await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, { method: "DELETE" });
     if (selectedFile?.name === name) {
       setSelectedFile(null);
-      setActiveTab("graph");
-    }
-    fetchFiles();
-  };
-
-  const deleteFile = async (name: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, { method: "DELETE" });
-    if (selectedFile?.name === name) {
-      setSelectedFile(null);
     }
     fetchFiles();
   };
@@ -780,15 +769,7 @@ function App() {
 
         </div>
 
-        <button
-          className={`sidebar-toggle-btn ${!filesSidebarOpen ? "sidebar-collapsed" : ""}`}
-          onClick={() => setFilesSidebarOpen(!filesSidebarOpen)}
-          title={filesSidebarOpen ? "Hide files" : "Show files"}
-        >
-          {filesSidebarOpen ? "▶" : "◀"}
-        </button>
-
-        <div className={`files-sidebar ${!filesSidebarOpen ? "collapsed" : ""}`}>
+        <div className="files-sidebar">
           <div className="files-sidebar-header">
             <span>Files</span>
             <button
