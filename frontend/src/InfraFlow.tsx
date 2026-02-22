@@ -4,6 +4,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  MiniMap,
   Panel,
   Node,
   Edge,
@@ -779,6 +780,15 @@ export default function InfraFlow({ nodes: apiNodes, edges: apiEdges }: InfraFlo
         >
           <Background color="#1e2330" variant={BackgroundVariant.Dots} gap={20} />
           <Controls style={{ background: '#1a1d27', borderColor: '#2a2d35' }} />
+          <MiniMap
+            nodeColor={n => {
+              if (n.type === 'infraGroup') return '#1a1d27'
+              const cat = (n.data as any)?.category ?? 'other'
+              return catStyle[cat]?.border ?? '#546e7a'
+            }}
+            maskColor="rgba(0,0,0,0.55)"
+            style={{ background: '#1a1d27', border: '1px solid #2a2d35' }}
+          />
           <Panel position="top-right">
             <button className="diagram-download-btn" onClick={downloadPng} title="Download as PNG">
               ↓ PNG
