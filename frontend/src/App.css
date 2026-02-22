@@ -22,7 +22,7 @@ header {
 }
 
 header h1 {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 600;
 }
 
@@ -37,10 +37,23 @@ header h1 {
 /* --- Left Panel --- */
 
 .chat-panel {
-  width: 400px;
+  flex: none;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #2a2d35;
+  min-width: 250px;
+}
+
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover {
+  background: #8ab4f8;
 }
 
 .hcl-input {
@@ -50,7 +63,7 @@ header h1 {
   background: #1a1d27;
   color: #c8e6c9;
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1.6;
   border: none;
   outline: none;
@@ -58,7 +71,7 @@ header h1 {
 
 .hcl-error {
   padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: #ef9a9a;
   border-top: 1px solid #2a2d35;
 }
@@ -159,7 +172,7 @@ header h1 {
   justify-content: space-between;
   padding: 0.75rem;
   border-bottom: 1px solid #2a2d35;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #888;
   text-transform: uppercase;
@@ -186,7 +199,7 @@ header h1 {
   border: none;
   background: transparent;
   color: #888;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -263,7 +276,7 @@ header h1 {
   padding: 6px 14px;
   border-bottom: 1px solid #2a2d35;
   background: #13151e;
-  font-size: 11px;
+  font-size: 13px;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -338,7 +351,7 @@ header h1 {
 }
 
 .node-tooltip-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #e0e0e0;
   white-space: nowrap;
@@ -347,14 +360,14 @@ header h1 {
 }
 
 .node-tooltip-type {
-  font-size: 10px;
+  font-size: 12px;
   font-family: monospace;
   color: #666;
   margin-bottom: 8px;
 }
 
 .node-tooltip-desc {
-  font-size: 11px;
+  font-size: 13px;
   color: #aaa;
   line-height: 1.5;
   margin: 0 0 8px;
@@ -363,7 +376,7 @@ header h1 {
 
 .node-tooltip-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
@@ -394,7 +407,7 @@ header h1 {
   border-radius: 6px;
   background: #1a1d27;
   color: #e0e0e0;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   cursor: pointer;
 }
 
@@ -453,12 +466,12 @@ header h1 {
 }
 
 .file-name {
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-family: monospace;
 }
 
 .file-size {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   color: #666;
 }
 
@@ -479,7 +492,7 @@ header h1 {
 
 .file-content-header {
   padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   font-weight: 600;
   font-family: monospace;
   border-bottom: 1px solid #2a2d35;
@@ -530,7 +543,7 @@ header h1 {
   flex: 1;
   overflow: auto;
   padding: 1rem;
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1.6;
   font-family: monospace;
   white-space: pre;
@@ -540,7 +553,7 @@ header h1 {
 .empty-state {
   padding: 1rem;
   color: #666;
-  font-size: 0.85rem;
+  font-size: 1rem;
 }
 
 /* --- Deploy tab --- */
@@ -562,7 +575,7 @@ header h1 {
 }
 
 .deploy-status {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   font-weight: 500;
 }
 
@@ -612,7 +625,7 @@ header h1 {
   padding: 1rem;
   background: #2d1a1a;
   color: #ef5350;
-  font-size: 0.85rem;
+  font-size: 1rem;
   border-bottom: 1px solid #3d2626;
 }
 
@@ -621,7 +634,7 @@ header h1 {
   overflow-y: auto;
   padding: 1rem;
   font-family: monospace;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   line-height: 1.5;
   background: #0d0f14;
 }
@@ -654,7 +667,7 @@ header h1 {
   border-radius: 6px;
   background: #1a1d27;
   color: #e0e0e0;
-  font-size: 0.875rem;
+  font-size: 1rem;
   outline: none;
 }
 
@@ -671,7 +684,7 @@ header h1 {
 }
 
 .chat-msg-role {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -691,7 +704,7 @@ header h1 {
 }
 
 .chat-msg-body {
-  font-size: 0.875rem;
+  font-size: 1rem;
   line-height: 1.6;
 }
 
@@ -708,9 +721,9 @@ header h1 {
   font-weight: 600;
 }
 
-.chat-msg-body h1 { font-size: 1.1rem; }
-.chat-msg-body h2 { font-size: 1rem; }
-.chat-msg-body h3 { font-size: 0.95rem; }
+.chat-msg-body h1 { font-size: 1.25rem; }
+.chat-msg-body h2 { font-size: 1.15rem; }
+.chat-msg-body h3 { font-size: 1.1rem; }
 
 .chat-msg-body ul,
 .chat-msg-body ol {
@@ -722,7 +735,7 @@ header h1 {
   background: #1a1d27;
   padding: 0.15em 0.35em;
   border-radius: 3px;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   font-family: monospace;
 }
 
@@ -738,7 +751,7 @@ header h1 {
 .chat-msg-body pre code {
   background: none;
   padding: 0;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   line-height: 1.5;
 }
 
@@ -764,26 +777,61 @@ header h1 {
   background: #13151c;
 }
 
-.reasoning-block summary {
+.reasoning-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: #888;
   font-weight: 500;
   user-select: none;
 }
 
-.reasoning-block summary:hover {
+.reasoning-summary:hover {
   color: #aaa;
+}
+
+.reasoning-arrow {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.reasoning-block.open .reasoning-arrow {
+  transform: rotate(90deg);
+}
+
+.reasoning-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8ab4f8;
+  animation: reasoning-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+@keyframes reasoning-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 .reasoning-content {
   padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: #999;
   line-height: 1.5;
   border-top: 1px solid #2a2d35;
   white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* --- Tool Call Card --- */
@@ -797,7 +845,7 @@ header h1 {
   background: #1a1d27;
   border: 1px solid #2a2d35;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
 .tool-call-filename {
@@ -808,7 +856,7 @@ header h1 {
 
 .tool-call-result {
   color: #81c784;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   margin-left: auto;
 }
 
@@ -817,7 +865,7 @@ header h1 {
 .phase-indicator {
   margin: 0.3em 0;
   padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: #8ab4f8;
   background: #131824;
   border-left: 3px solid #8ab4f8;
@@ -833,7 +881,7 @@ header h1 {
 .plan-ready-indicator {
   margin: 0.3em 0;
   padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: #81c784;
   background: #131e15;
   border-left: 3px solid #81c784;
@@ -843,7 +891,7 @@ header h1 {
 .validation-block pre {
   margin: 0.3em 0;
   padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   background: #13151c;
   border: 1px solid #2a2d35;
   border-radius: 4px;
@@ -890,7 +938,7 @@ header h1 {
   padding: 0.5rem 1rem;
   background: #1a1d27;
   border-bottom: 1px solid #2a2d35;
-  font-size: 0.85rem;
+  font-size: 1rem;
   color: #e0e0e0;
 }
 
@@ -902,7 +950,7 @@ header h1 {
 .file-action-btn {
   margin-left: 0.5rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   background: #2a2d35;
   border: 1px solid #3a3d45;
   border-radius: 4px;

@@ -25,17 +25,38 @@ type MsgSegment =
 type ChatMsg = { role: "user" | "assistant" | "error"; segments: MsgSegment[] };
 type LLMHistory = { role: string; content: string }[];
 
-function ChatSegment({ segment }: { segment: MsgSegment }) {
+function ReasoningBlock({ content, isStreaming }: { content: string; isStreaming: boolean }) {
+  const [open, setOpen] = useState(false);
+  const wasStreaming = useRef(false);
+
+  useEffect(() => {
+    if (isStreaming) {
+      setOpen(true);
+      wasStreaming.current = true;
+    } else if (wasStreaming.current) {
+      setOpen(false);
+      wasStreaming.current = false;
+    }
+  }, [isStreaming]);
+
+  return (
+    <div className={`reasoning-block ${open ? "open" : ""}`}>
+      <div className="reasoning-summary" onClick={() => setOpen((o) => !o)}>
+        <span className="reasoning-arrow" />
+        Reasoning
+        {isStreaming && <span className="reasoning-live" />}
+      </div>
+      {open && <div className="reasoning-content">{content}</div>}
+    </div>
+  );
+}
+
+function ChatSegment({ segment, isStreaming }: { segment: MsgSegment; isStreaming: boolean }) {
   switch (segment.type) {
     case "text":
       return <Markdown remarkPlugins={[remarkGfm]}>{segment.content}</Markdown>;
     case "reasoning":
-      return (
-        <details className="reasoning-block">
-          <summary>Reasoning</summary>
-          <div className="reasoning-content">{segment.content}</div>
-        </details>
-      );
+      return <ReasoningBlock content={segment.content} isStreaming={isStreaming} />;
     case "tool_call":
       return (
         <div className="tool-call-card">
@@ -86,6 +107,36 @@ function App() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [chatWidth, setChatWidth] = useState(400);
+  const dragging = useRef(false);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      const clamped = Math.min(Math.max(e.clientX, 250), window.innerWidth - 300);
+      setChatWidth(clamped);
+    };
+    const onMouseUp = () => {
+      if (dragging.current) {
+        dragging.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -505,14 +556,24 @@ function App() {
         <h1>Cloud Comfort</h1>
       </header>
       <div className="panels">
-        <div className="chat-panel">
+        <div className="chat-panel" style={{ width: chatWidth }}>
           <div className="chat-log">
             {chatLog.map((msg, i) => (
               <div key={i} className={`chat-msg ${msg.role}`}>
                 <div className="chat-msg-role">{msg.role}</div>
                 <div className="chat-msg-body">
                   {msg.segments.map((seg, j) => (
-                    <ChatSegment key={j} segment={seg} />
+                    <ChatSegment
+                      key={j}
+                      segment={seg}
+                      isStreaming={
+                        sending &&
+                        i === chatLog.length - 1 &&
+                        msg.role === "assistant" &&
+                        j === msg.segments.length - 1 &&
+                        seg.type === "reasoning"
+                      }
+                    />
                   ))}
                   {sending &&
                     i === chatLog.length - 1 &&
@@ -539,6 +600,8 @@ function App() {
             )}
           </div>
         </div>
+
+        <div className="resize-handle" onMouseDown={onResizeStart} />
 
         <div className="middle-panel">
           <div className="tab-bar">
@@ -708,7 +771,7 @@ function App() {
               onClick={() => uploadRef.current?.click()}
               style={{
                 padding: "0.25rem 0.5rem",
-                fontSize: "0.75rem",
+                fontSize: "0.9rem",
                 background: "#1a1d27",
                 border: "1px solid #2a2d35",
                 borderRadius: "4px",

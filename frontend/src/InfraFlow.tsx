@@ -327,7 +327,7 @@ function ResourceNode({ data, id }: NodeProps) {
         borderRadius: 6,
         padding: '6px 10px',
         color: s.text,
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: 600,
         minWidth: MIN_NODE_W,
         textAlign: 'center',
@@ -392,11 +392,11 @@ function GroupNode({ data }: NodeProps) {
         pointerEvents: 'none',
       }}>
         {Icon && <Icon size={18} />}
-        <span style={{ color: cfg.text, fontSize: 12, fontWeight: 700, letterSpacing: '0.01em' }}>
+        <span style={{ color: cfg.text, fontSize: 14, fontWeight: 700, letterSpacing: '0.01em' }}>
           {d.label}
         </span>
         {d.cidr && (
-          <span style={{ color: cfg.text, fontSize: 10, opacity: 0.7, marginLeft: 4 }}>
+          <span style={{ color: cfg.text, fontSize: 12, opacity: 0.7, marginLeft: 4 }}>
             ({d.cidr})
           </span>
         )}

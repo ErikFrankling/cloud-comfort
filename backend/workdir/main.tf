@@ -346,6 +346,17 @@ resource "aws_dynamodb_table" "documents" {
 }
 
 #===============================================================================
+# VPC Endpoint for OpenSearch Serverless
+#===============================================================================
+
+resource "aws_opensearchserverless_vpc_endpoint" "main" {
+  name               = "${var.environment}-vpc-endpoint"
+  vpc_id             = aws_vpc.main.id
+  subnet_ids         = aws_subnet.private[*].id
+  security_group_ids = [aws_security_group.opensearch.id]
+}
+
+#===============================================================================
 # OpenSearch Serverless
 #===============================================================================
 
@@ -379,9 +390,11 @@ resource "aws_opensearchserverless_security_policy" "network" {
         }
       ]
       AllowFromPublic = false
-      AllowFromVPC    = true
+      SourceVPCEs     = [aws_opensearchserverless_vpc_endpoint.main.id]
     }
   ])
+
+  depends_on = [aws_opensearchserverless_vpc_endpoint.main]
 }
 
 resource "aws_opensearchserverless_access_policy" "lambda_access" {
@@ -418,20 +431,12 @@ resource "aws_opensearchserverless_collection" "rag" {
   ]
 }
 
-# VPC Endpoint for OpenSearch Serverless
-resource "aws_opensearchserverless_vpc_endpoint" "main" {
-  name               = "${var.environment}-vpc-endpoint"
-  vpc_id             = aws_vpc.main.id
-  subnet_ids         = aws_subnet.private[*].id
-  security_group_ids = [aws_security_group.opensearch.id]
-}
-
 #===============================================================================
 # IAM Roles
 #===============================================================================
 
 resource "aws_iam_role" "lambda_role" {
-  name = "${var.environment}-lambda-role"
+  name = "${var.environment}-lambda-role-${substr(timestamp(), 0, 10)}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -447,6 +452,10 @@ resource "aws_iam_role" "lambda_role" {
   })
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda_policy" {
