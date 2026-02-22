@@ -797,6 +797,12 @@ header {
 }
 .pipeline-bar-actions { display: flex; align-items: center; gap: 0.5rem; }
 
+.auto-deploy-toggle {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.8rem; color: #8a8f98; cursor: pointer; user-select: none;
+}
+.auto-deploy-toggle input { cursor: pointer; accent-color: #4fc3f7; }
+
 .show-logs-btn {
   padding: 0.25rem 0.65rem; font-size: 0.85rem; font-weight: 600;
   background: transparent; border: 1px solid #2a2d35; border-radius: 5px;

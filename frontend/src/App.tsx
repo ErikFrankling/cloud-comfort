@@ -105,11 +105,14 @@ function App() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [failedStep, setFailedStep] = useState<"init" | "apply" | null>(null);
   const [planReady, setPlanReady] = useState(false);
+  const [autoDeploy, setAutoDeploy] = useState(false);
   const [deployOutputs, setDeployOutputs] = useState<Record<string, string> | null>(null);
   const [filesSidebarOpen, setFilesSidebarOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const autoDeployRef = useRef(false);
+  const handleDeployRef = useRef<() => void>(() => {});
   const [chatWidth, setChatWidth] = useState(400);
   const dragging = useRef(false);
 
@@ -352,6 +355,10 @@ function App() {
                 { type: "plan_ready", hasChanges: !!event.has_changes },
               ]);
               fetchFiles();
+              generateDiagram();
+              if (autoDeployRef.current) {
+                handleDeployRef.current();
+              }
             }
 
             if (event.error) {
@@ -571,6 +578,8 @@ function App() {
     }
   };
 
+  handleDeployRef.current = handleDeploy;
+
   const handleReset = () => {
     setDeployStatus("idle");
     setDeployOutput([]);
@@ -775,6 +784,17 @@ function App() {
               <button className="show-logs-btn" onClick={() => setLogsOpen((o) => !o)}>
                 {logsOpen ? "Hide Logs" : "Deploy Logs"}
               </button>
+              <label className="auto-deploy-toggle">
+                <input
+                  type="checkbox"
+                  checked={autoDeploy}
+                  onChange={(e) => {
+                    setAutoDeploy(e.target.checked);
+                    autoDeployRef.current = e.target.checked;
+                  }}
+                />
+                Auto
+              </label>
               {deployStatus === "idle" && (
                 <button className="deploy-btn" onClick={handleDeploy}>Deploy</button>
               )}

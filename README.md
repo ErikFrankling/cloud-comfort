@@ -85,14 +85,40 @@ All endpoints served on `:8080`. Frontend proxied via Vite at `:5173`.
 
 Configured via env vars in `.env`:
 
-| Var             | Default                        | Purpose                       |
-| --------------- | ------------------------------ | ----------------------------- |
-| `LLM_BASE_URL`  | `https://openrouter.ai/api/v1` | OpenAI-compatible API base    |
-| `LLM_API_KEY`   | —                              | Bearer token                  |
-| `LLM_MODEL`     | `openai/gpt-4o`                | Model identifier              |
-| `LLM_STREAMING` | `true`                         | Enable SSE streaming from LLM |
+| Var                | Default                        | Purpose                                 |
+| ------------------ | ------------------------------ | --------------------------------------- |
+| `LLM_PROVIDER`     | `openrouter`                   | LLM provider: openrouter, anthropic, openai, ollama |
+| `LLM_BASE_URL`     | (auto)                         | API base URL (auto-set based on provider) |
+| `LLM_API_KEY`      | —                              | API key for chosen provider             |
+| `LLM_MODEL`        | `openai/gpt-4o`                | Model identifier                        |
+| `LLM_STREAMING`  | `true`                         | Enable SSE streaming from LLM           |
+| `LLM_MAX_TOKENS`   | `0`                            | Max tokens per response (0 = default)   |
 
-The client (`llm/client.go`) speaks the OpenAI chat completions protocol: `POST {base_url}/chat/completions` with `Authorization: Bearer {key}`. Works with OpenRouter, OpenAI, Ollama, or any compatible endpoint.
+### Supported Providers
+
+**OpenRouter** (default)
+- Base URL: `https://openrouter.ai/api/v1`
+- Models: `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`, `moonshotai/kimi-k2.5`, etc.
+- Features: Provider routing, quantization preferences
+
+**Anthropic** (native API)
+- Base URL: `https://api.anthropic.com`
+- Models: `claude-3-5-sonnet-20241022`, `claude-3-opus-20240229`, `claude-3-haiku-20240307`
+- Uses native `/v1/messages` API (not OpenAI-compatible)
+
+**OpenAI**
+- Base URL: `https://api.openai.com/v1`
+- Models: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`
+
+**Ollama** (local)
+- Base URL: `http://localhost:11434`
+- Models: `llama3.2`, `mistral`, `codellama`
+
+### Provider-Specific Settings
+
+**OpenRouter only:**
+- `LLM_PROVIDER_SORT`: Provider preference (`throughput`, `latency`, `price`)
+- `LLM_QUANTIZATIONS`: Quantization preferences (`fp16,fp8,int4`)
 
 Two modes:
 

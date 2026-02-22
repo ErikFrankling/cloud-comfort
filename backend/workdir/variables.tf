@@ -4,28 +4,33 @@ variable "aws_region" {
   default     = "eu-north-1"
 }
 
-variable "bucket_name" {
-  description = "Base name for S3 bucket (will have random suffix added)"
+variable "github_owner" {
+  description = "GitHub repository owner"
   type        = string
-  default     = "cleversel-website-bucket"
+  default     = "ErikFrankling"
 }
 
-variable "github_token" {
-  description = "GitHub token for managing repository"
+variable "github_repo" {
+  description = "GitHub repository name"
   type        = string
-  sensitive   = true
-  default     = ""
+  default     = "Cleversel-Website"
+}
+
+variable "bucket_name" {
+  description = "S3 bucket name for the website"
+  type        = string
+  default     = "cleversel-landing-page"
 }
 
 variable "aws_access_key_id" {
-  description = "AWS access key for GitHub Actions"
+  description = "AWS access key for GitHub Actions secret"
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "aws_secret_access_key" {
-  description = "AWS secret key for GitHub Actions"
+  description = "AWS secret key for GitHub Actions secret"
   type        = string
   sensitive   = true
   default     = ""

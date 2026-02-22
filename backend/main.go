@@ -48,15 +48,18 @@ func main() {
 
 	// Create LLM client
 	maxTokens, _ := strconv.Atoi(getEnvOr("LLM_MAX_TOKENS", "0"))
+	provider := llm.Provider(getEnvOr("LLM_PROVIDER", "openrouter"))
 	llmClient := llm.NewClient(llm.Config{
-		BaseURL:       getEnvOr("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+		Provider:      provider,
+		BaseURL:       getEnvOr("LLM_BASE_URL", ""), // Empty lets the client set default based on provider
 		APIKey:        os.Getenv("LLM_API_KEY"),
 		Model:         getEnvOr("LLM_MODEL", "openai/gpt-4o"),
 		Streaming:     getEnvOr("LLM_STREAMING", "true") == "true",
 		MaxTokens:     maxTokens,
-		ProviderSort:  getEnvOr("LLM_PROVIDER_SORT", ""), // "throughput", "latency", or "price"
-		Quantizations: getEnvOr("LLM_QUANTIZATIONS", ""), // e.g. "fp16,fp8"
+		ProviderSort:  getEnvOr("LLM_PROVIDER_SORT", ""),
+		Quantizations: getEnvOr("LLM_QUANTIZATIONS", ""),
 	})
+	log.Printf("LLM client initialized: provider=%s", provider)
 
 	absWorkDir := tfSvc.WorkDir()
 
