@@ -141,6 +141,95 @@ const resourceIconMap: Record<string, AwsIcon> = {
   aws_route53_record:               ArchitectureServiceAmazonRoute53 as AwsIcon,
 }
 
+// ─── Friendly type labels ────────────────────────────────────────────────────
+const resourceTypeLabels: Record<string, string> = {
+  aws_vpc:                          'VPC',
+  aws_subnet:                       'Subnet',
+  aws_internet_gateway:             'Internet Gateway',
+  aws_nat_gateway:                  'NAT Gateway',
+  aws_route_table:                  'Route Table',
+  aws_route_table_association:      'Route Table Assoc.',
+  aws_network_acl:                  'Network ACL',
+  aws_eip:                          'Elastic IP',
+  aws_network_interface:            'Network Interface',
+  aws_vpc_endpoint:                 'VPC Endpoint',
+  aws_vpc_peering_connection:       'VPC Peering',
+  aws_customer_gateway:             'Customer Gateway',
+  aws_vpn_gateway:                  'VPN Gateway',
+  aws_security_group:               'Security Group',
+  aws_security_group_rule:          'SG Rule',
+  aws_instance:                     'EC2 Instance',
+  aws_launch_template:              'Launch Template',
+  aws_launch_configuration:         'Launch Config',
+  aws_autoscaling_group:            'Auto Scaling Group',
+  aws_cloudfront_distribution:      'CloudFront',
+  aws_cloudfront_origin_access_control: 'CloudFront OAC',
+  aws_lambda_function:              'Lambda Function',
+  aws_lambda_permission:            'Lambda Permission',
+  aws_ecs_cluster:                  'ECS Cluster',
+  aws_ecs_service:                  'ECS Service',
+  aws_ecs_task_definition:          'ECS Task Def.',
+  aws_eks_cluster:                  'EKS Cluster',
+  aws_eks_node_group:               'EKS Node Group',
+  aws_s3_bucket:                    'S3 Bucket',
+  aws_s3_bucket_versioning:         'S3 Versioning',
+  aws_s3_bucket_policy:             'S3 Bucket Policy',
+  aws_s3_bucket_public_access_block:'S3 Public Access Block',
+  aws_s3_bucket_server_side_encryption_configuration: 'S3 Encryption',
+  aws_db_instance:                  'RDS Instance',
+  aws_db_subnet_group:              'DB Subnet Group',
+  aws_rds_cluster:                  'Aurora Cluster',
+  aws_dynamodb_table:               'DynamoDB Table',
+  aws_elasticache_cluster:          'ElastiCache Cluster',
+  aws_elasticache_replication_group:'ElastiCache Repl. Group',
+  aws_redshift_cluster:             'Redshift Cluster',
+  aws_iam_role:                     'IAM Role',
+  aws_iam_policy:                   'IAM Policy',
+  aws_iam_user:                     'IAM User',
+  aws_iam_group:                    'IAM Group',
+  aws_iam_instance_profile:         'IAM Instance Profile',
+  aws_secretsmanager_secret:        'Secrets Manager',
+  aws_lb:                           'App Load Balancer',
+  aws_alb:                          'App Load Balancer',
+  aws_lb_listener:                  'LB Listener',
+  aws_lb_target_group:              'LB Target Group',
+  aws_nlb:                          'Network Load Balancer',
+  aws_sqs_queue:                    'SQS Queue',
+  aws_cloudwatch_log_group:         'CloudWatch Logs',
+  aws_cloudwatch_metric_alarm:      'CloudWatch Alarm',
+  aws_cognito_user_pool:            'Cognito User Pool',
+  aws_cognito_identity_pool:        'Cognito Identity Pool',
+  aws_api_gateway_rest_api:         'API Gateway (REST)',
+  aws_api_gateway_v2_api:           'API Gateway (HTTP)',
+  aws_route53_zone:                 'Route 53 Zone',
+  aws_route53_record:               'Route 53 Record',
+}
+
+function getTypeLabel(resourceType?: string): string {
+  if (!resourceType) return ''
+  if (resourceTypeLabels[resourceType]) return resourceTypeLabels[resourceType]
+  if (resourceType.startsWith('aws_s3'))             return 'S3'
+  if (resourceType.startsWith('aws_lambda'))         return 'Lambda'
+  if (resourceType.startsWith('aws_ecs'))            return 'ECS'
+  if (resourceType.startsWith('aws_eks'))            return 'EKS'
+  if (resourceType.startsWith('aws_iam'))            return 'IAM'
+  if (resourceType.startsWith('aws_rds') || resourceType.startsWith('aws_db')) return 'RDS'
+  if (resourceType.startsWith('aws_dynamodb'))       return 'DynamoDB'
+  if (resourceType.startsWith('aws_elasticache'))    return 'ElastiCache'
+  if (resourceType.startsWith('aws_cloudwatch'))     return 'CloudWatch'
+  if (resourceType.startsWith('aws_cognito'))        return 'Cognito'
+  if (resourceType.startsWith('aws_api_gateway'))    return 'API Gateway'
+  if (resourceType.startsWith('aws_sqs'))            return 'SQS'
+  if (resourceType.startsWith('aws_route53'))        return 'Route 53'
+  if (resourceType.startsWith('aws_lb') || resourceType.startsWith('aws_alb')) return 'Load Balancer'
+  if (resourceType.startsWith('aws_secretsmanager')) return 'Secrets Manager'
+  if (resourceType.startsWith('aws_autoscaling'))    return 'Auto Scaling'
+  if (resourceType.startsWith('aws_security_group')) return 'Security Group'
+  if (resourceType.startsWith('aws_cloudfront'))     return 'CloudFront'
+  if (resourceType.startsWith('aws_vpc'))            return 'VPC'
+  return resourceType.replace(/^aws_/, '').replace(/_/g, ' ')
+}
+
 // ─── Descriptions ────────────────────────────────────────────────────────────
 const resourceDescriptions: Record<string, string> = {
   aws_vpc:                          'Isolated virtual network in AWS. Defines the IP address range and network topology for your resources.',
@@ -295,6 +384,7 @@ function ResourceNode({ data, id }: NodeProps) {
   const s = catStyle[d.category] ?? catStyle.other
   const Icon = getIcon(d.resourceType)
   const description = getDescription(d.resourceType)
+  const typeLabel = getTypeLabel(d.resourceType)
   const [tooltip, setTooltip] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { setNodes } = useReactFlow()
@@ -339,7 +429,14 @@ function ResourceNode({ data, id }: NodeProps) {
       <Handle type="target" position={Position.Top}
         style={{ background: s.border, width: 8, height: 8 }} />
       {Icon && <Icon size={22} />}
-      <span>{d.label?.includes(': ') ? d.label.split(': ')[1] : d.label}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.2 }}>
+        {d.label?.includes(': ') ? d.label.split(': ')[1] : d.label}
+      </span>
+      {typeLabel && (
+        <span style={{ fontSize: 9, opacity: 0.65, fontWeight: 400, letterSpacing: '0.03em' }}>
+          {typeLabel}
+        </span>
+      )}
       <Handle type="source" position={Position.Bottom}
         style={{ background: s.border, width: 8, height: 8 }} />
 
@@ -349,7 +446,7 @@ function ResourceNode({ data, id }: NodeProps) {
             {Icon && <Icon size={20} />}
             <span className="node-tooltip-name">{name}</span>
           </div>
-          <div className="node-tooltip-type">{d.resourceType}</div>
+          <div className="node-tooltip-type">{typeLabel || d.resourceType}</div>
           {description && <p className="node-tooltip-desc">{description}</p>}
           <div className="node-tooltip-badge" style={{ background: s.border }}>
             {d.category}
