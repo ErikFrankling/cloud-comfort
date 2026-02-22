@@ -280,7 +280,7 @@ header {
 }
 
 .diagram-output .react-flow__node-resource .resource-node-inner {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, filter 0.15s ease;
   cursor: default;
   animation: node-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -291,10 +291,10 @@ header {
 }
 
 .diagram-output .react-flow__node-resource:hover .resource-node-inner {
-  transform: scale(1.1);
-  box-shadow:
-    0 0 0 3px var(--node-border, #78909c),
-    0 8px 24px rgba(0, 0, 0, 0.7);
+  filter:
+    drop-shadow(0 0 6px var(--node-border, #78909c))
+    drop-shadow(0 0 14px var(--node-border, #78909c));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
 }
 
 /* --- Diagram summary bar --- */
@@ -383,6 +383,7 @@ header {
   z-index: 9999;
   pointer-events: none;
   text-align: left;
+  white-space: normal;
   animation: tooltip-in 0.12s ease;
 }
 
@@ -520,8 +521,9 @@ header {
 
 .file-item {
   display: flex;
-  justify-content: space-between;
-  padding: 0.6rem 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   cursor: pointer;
   border-bottom: 1px solid #1a1d27;
   transition: background 0.1s, box-shadow 0.15s ease;
@@ -539,13 +541,46 @@ header {
 }
 
 .file-name {
-  font-size: 1rem;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
   font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-size {
-  font-size: 0.9rem;
-  color: #666;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.file-delete-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #555;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.file-item:hover .file-delete-btn {
+  opacity: 1;
+}
+
+.file-delete-btn:hover {
+  background: rgba(239, 83, 80, 0.15);
+  color: #ef5350;
 }
 
 .file-content {
@@ -1167,7 +1202,7 @@ header {
 }
 .sidebar-upload-btn:hover { color: #8ab4f8; border-color: #8ab4f8; background: rgba(138,180,248,0.06); }
 
-.file-icon { font-family: monospace; font-size: 0.7rem; color: #556080; flex-shrink: 0; font-weight: 700; }
+.file-icon { font-family: monospace; font-size: 0.7rem; color: #556080; flex-shrink: 0; font-weight: 700; width: 18px; text-align: center; }
 .file-item.active .file-icon { color: #8ab4f8; }
 
 .empty-state-files { padding: 2rem 1rem; text-align: center; }

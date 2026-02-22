@@ -1,68 +1,34 @@
-# S3 Bucket Outputs
-output "bucket_name" {
-  description = "Name of the S3 website bucket"
-  value       = aws_s3_bucket.website.bucket
+output "cloudfront_domain" {
+  description = "CloudFront CDN domain for media"
+  value       = aws_cloudfront_distribution.media.domain_name
 }
 
-output "bucket_arn" {
-  description = "ARN of the S3 website bucket"
-  value       = aws_s3_bucket.website.arn
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = aws_cognito_user_pool.users.id
 }
 
-output "bucket_id" {
-  description = "ID of the S3 website bucket"
-  value       = aws_s3_bucket.website.id
+output "cognito_client_id" {
+  description = "Cognito App Client ID"
+  value       = aws_cognito_user_pool_client.api_client.id
 }
 
-output "storage_bucket_name" {
-  description = "Name of the S3 storage bucket"
-  value       = aws_s3_bucket.storage.bucket
+output "dynamodb_tables" {
+  description = "DynamoDB table names"
+  value = {
+    users     = aws_dynamodb_table.users.name
+    tweets    = aws_dynamodb_table.tweets.name
+    timelines = aws_dynamodb_table.timelines.name
+    follows   = aws_dynamodb_table.follows.name
+  }
 }
 
-output "storage_bucket_arn" {
-  description = "ARN of the S3 storage bucket"
-  value       = aws_s3_bucket.storage.arn
+output "sqs_queue_url" {
+  description = "SQS queue URL for tweet fanout"
+  value       = aws_sqs_queue.tweet_fanout.url
 }
 
-# CloudFront Outputs
-output "cloudfront_domain_name" {
-  description = "Domain name of the CloudFront distribution"
-  value       = aws_cloudfront_distribution.website.domain_name
-}
-
-output "cloudfront_distribution_id" {
-  description = "ID of the CloudFront distribution"
-  value       = aws_cloudfront_distribution.website.id
-}
-
-output "website_url" {
-  description = "URL to access the website via CloudFront"
-  value       = "https://${aws_cloudfront_distribution.website.domain_name}"
-}
-
-# DynamoDB Outputs
-output "dynamodb_table_name" {
-  description = "Name of the DynamoDB table"
-  value       = aws_dynamodb_table.main.name
-}
-
-output "dynamodb_table_arn" {
-  description = "ARN of the DynamoDB table"
-  value       = aws_dynamodb_table.main.arn
-}
-
-# Lambda Outputs
-output "lambda_function_name" {
-  description = "Name of the Lambda function"
-  value       = aws_lambda_function.api.function_name
-}
-
-output "lambda_function_arn" {
-  description = "ARN of the Lambda function"
-  value       = aws_lambda_function.api.arn
-}
-
-output "lambda_function_url" {
-  description = "URL endpoint for the Lambda function"
-  value       = aws_lambda_function_url.api.function_url
+output "s3_media_bucket" {
+  description = "S3 bucket for media storage"
+  value       = aws_s3_bucket.media.bucket
 }

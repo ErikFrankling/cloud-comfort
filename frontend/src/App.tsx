@@ -95,7 +95,7 @@ function App() {
   const [chatLog, setChatLog] = useState<ChatMsg[]>([]);
   const [history, setHistory] = useState<LLMHistory>([]);
   const [sending, setSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<"graph" | "files">("graph");
+  const [activeTab, setActiveTab] = useState<"graph" | "file">("graph");
   const [logsOpen, setLogsOpen] = useState(false);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null);
@@ -105,6 +105,7 @@ function App() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [failedStep, setFailedStep] = useState<"init" | "apply" | null>(null);
   const [planReady, setPlanReady] = useState(false);
+  const [filesSidebarOpen, setFilesSidebarOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -409,12 +410,11 @@ function App() {
       );
       const content = await res.text();
       setSelectedFile({ name, content });
-      setFileChanged(false);
+      setActiveTab("file");
     } catch {
       setSelectedFile({ name, content: "Failed to load file." });
     }
   };
-
 
   const downloadFile = () => {
     if (!selectedFile) return;
@@ -567,6 +567,25 @@ function App() {
     setLogsOpen(false);
   };
 
+  const deleteFile = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, { method: "DELETE" });
+    if (selectedFile?.name === name) {
+      setSelectedFile(null);
+      setActiveTab("graph");
+    }
+    fetchFiles();
+  };
+
+  const deleteFile = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, { method: "DELETE" });
+    if (selectedFile?.name === name) {
+      setSelectedFile(null);
+    }
+    fetchFiles();
+  };
+
   const formatSize = (b: number) => b < 1024 ? `${b}B` : `${(b / 1024).toFixed(1)}K`;
 
   return (
@@ -575,6 +594,7 @@ function App() {
         <div className="header-brand">
           <span className="header-icon">☁</span>
           <h1 className="header-title">Cloud Comfort</h1>
+          <span className="header-badge">AI · Terraform</span>
         </div>
       </header>
       <div className="panels">
@@ -687,18 +707,20 @@ function App() {
             >
               Flow Chart
             </button>
-            <button
-              className={activeTab === "files" ? "active" : ""}
-              onClick={() => setActiveTab("files")}
-            >
-              Files
-            </button>
+            {selectedFile && (
+              <button
+                className={activeTab === "file" ? "active" : ""}
+                onClick={() => setActiveTab("file")}
+              >
+                {selectedFile.name}
+              </button>
+            )}
           </div>
 
           <div className="tab-content">
             <div style={{ display: activeTab === "graph" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
               <div className="file-actions">
-                <button className="generate-diagram-btn" onClick={generateDiagram} disabled={diagramLoading}>
+                <button onClick={generateDiagram} disabled={diagramLoading}>
                   {diagramLoading ? "Generating..." : "Generate Diagram"}
                 </button>
                 {diagramError && (
@@ -719,73 +741,100 @@ function App() {
               )}
             </div>
 
-            <div style={{ display: activeTab === "files" ? "flex" : "none", flex: 1, overflow: "hidden" }}>
-              <div className="files-picker">
-                <div className="files-picker-header">
-                  <button className="sidebar-upload-btn" onClick={() => uploadRef.current?.click()}>
-                    + Upload
-                  </button>
-                  <input ref={uploadRef} type="file" accept=".tf,.tfvars" onChange={uploadFile} hidden />
-                </div>
-                <div className="files-list">
-                  {files.length === 0 && (
-                    <div className="empty-state-files">
-                      <div className="empty-state-icon">{"{}"}</div>
-                      <p>No .tf files yet</p>
-                    </div>
-                  )}
-                  {files.map((f, i) => (
-                    <div
-                      key={f.name}
-                      className={`file-item ${selectedFile?.name === f.name ? "active" : ""}`}
-                      onClick={() => viewFile(f.name)}
-                      style={{ animationDelay: `${i * 50}ms` }}
-                    >
-                      <div className="file-icon">{f.name.endsWith(".tfvars") ? "⚙" : "{}"}</div>
-                      <span className="file-name">{f.name}</span>
-                    </div>
-                  ))}
+            {selectedFile && (
+              <div style={{ display: activeTab === "file" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
+                <div className="file-editor-panel">
+                  <div className="file-editor-header">
+                    <span>{selectedFile.name}</span>
+                    {fileChanged && <span className="unsaved">*</span>}
+                    <button onClick={downloadFile} className="file-action-btn">
+                      Download
+                    </button>
+                    {fileChanged && (
+                      <button onClick={saveFile} className="file-action-btn save">
+                        Save
+                      </button>
+                    )}
+                  </div>
+                  <div className="file-editor-content">
+                    <Editor
+                      height="100%"
+                      language="hcl"
+                      theme="vs-dark"
+                      value={selectedFile.content}
+                      onChange={handleEditorChange}
+                      options={{
+                        minimap: { enabled: true },
+                        fontSize: 14,
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        readOnly: false,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-
-              <div className="files-preview">
-                {selectedFile ? (
-                  <div className="file-editor-panel">
-                    <div className="file-editor-header">
-                      <span>{selectedFile.name}</span>
-                      {fileChanged && <span className="unsaved">*</span>}
-                      <button onClick={downloadFile} className="file-action-btn">Download</button>
-                      {fileChanged && <button onClick={saveFile} className="file-action-btn save">Save</button>}
-                    </div>
-                    <div className="file-editor-content">
-                      <Editor
-                        height="100%"
-                        language="hcl"
-                        theme="vs-dark"
-                        value={selectedFile.content}
-                        onChange={handleEditorChange}
-                        options={{
-                          minimap: { enabled: true },
-                          fontSize: 14,
-                          lineNumbers: "on",
-                          scrollBeyondLastLine: false,
-                          automaticLayout: true,
-                          readOnly: false,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="files-preview-empty">
-                    <p>Click a file to view and edit it</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
         </div>
 
+        <button
+          className={`sidebar-toggle-btn ${!filesSidebarOpen ? "sidebar-collapsed" : ""}`}
+          onClick={() => setFilesSidebarOpen(!filesSidebarOpen)}
+          title={filesSidebarOpen ? "Hide files" : "Show files"}
+        >
+          {filesSidebarOpen ? "▶" : "◀"}
+        </button>
+
+        <div className={`files-sidebar ${!filesSidebarOpen ? "collapsed" : ""}`}>
+          <div className="files-sidebar-header">
+            <span>Files</span>
+            <button
+              className="sidebar-upload-btn"
+              onClick={() => uploadRef.current?.click()}
+            >
+              + Upload
+            </button>
+            <input
+              ref={uploadRef}
+              type="file"
+              accept=".tf,.tfvars"
+              onChange={uploadFile}
+              hidden
+            />
+          </div>
+
+          <div className="files-list">
+            {files.length === 0 && (
+              <div className="empty-state-files">
+                <div className="empty-state-icon">{"{}"}</div>
+                <p>No .tf files yet</p>
+                <p className="empty-state-hint">Chat with the AI to generate your first file</p>
+              </div>
+            )}
+            {files.map((f, i) => (
+              <div
+                key={f.name}
+                className={`file-item ${selectedFile?.name === f.name ? "active" : ""}`}
+                onClick={() => viewFile(f.name)}
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
+                <div className="file-icon">{f.name.endsWith(".tfvars") ? "⚙" : "{}"}</div>
+                <span className="file-name">{f.name}</span>
+                <span className="file-size">{formatSize(f.size)}</span>
+                <button
+                  className="file-delete-btn"
+                  onClick={(e) => deleteFile(f.name, e)}
+                  title={`Delete ${f.name}`}
+                >✕</button>
+              </div>
+            ))}
+          </div>
+
+
+        </div>
       </div>
       {logsOpen && (
         <div className="logs-modal-backdrop" onClick={() => setLogsOpen(false)}>

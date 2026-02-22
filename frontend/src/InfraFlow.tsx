@@ -362,13 +362,25 @@ const NODE_H = 72
 const GROUP_PAD = 24
 const GROUP_HEADER = 36
 const GROUP_GAP = 48
-const CHAR_PX = 6.6 // approx px per char at 11px bold
+const CHAR_PX = 6.6  // approx px per char at 13px bold (name line)
+const CHAR_PX_SM = 5.2 // approx px per char at 9px (type label line)
+const CHAR_PX_HDR = 7.8 // approx px per char at 13px bold (group header)
 
-function estimateNodeWidth(label: string): number {
+// Minimum width needed to fully show a group header (label + CIDR inline)
+function estimateGroupHeaderWidth(label: string, cidr?: string): number {
+  const iconW = 16 + 5 // icon + gap
+  const labelW = label.length * CHAR_PX_HDR
+  const cidrW = cidr ? (5 + (cidr.length + 2) * 6.6) : 0 // gap + "(cidr)" text
+  return Math.ceil(iconW + labelW + cidrW) + 20 // +20 for left/right padding
+}
+
+function estimateNodeWidth(label: string, resourceType?: string): number {
   const name = label.includes(': ') ? label.split(': ')[1] : label
-  const textW = name.length * CHAR_PX
-  const contentW = Math.max(22, textW) // icon is 22px wide
-  return Math.max(MIN_NODE_W, Math.ceil(contentW + 24)) // +24 for padding + border
+  const nameW = name.length * CHAR_PX
+  const typeLabel = resourceType ? getTypeLabel(resourceType) : ''
+  const typeLabelW = typeLabel.length * CHAR_PX_SM
+  const contentW = Math.max(22, nameW, typeLabelW) // icon is 22px wide
+  return Math.max(MIN_NODE_W, Math.ceil(contentW + 28)) // +28 for padding + border
 }
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
@@ -487,19 +499,21 @@ function GroupNode({ data }: NodeProps) {
       pointerEvents: 'none',
     }}>
       <div style={{
-        position: 'absolute', top: 6, left: 10,
-        display: 'flex', alignItems: 'center', gap: 5,
+        position: 'absolute', top: 6, left: 10, right: 10,
+        display: 'flex', flexDirection: 'column', gap: 1,
         pointerEvents: 'none',
       }}>
-        {Icon && <Icon size={18} />}
-        <span style={{ color: cfg.text, fontSize: 14, fontWeight: 700, letterSpacing: '0.01em' }}>
-          {d.label}
-        </span>
-        {d.cidr && (
-          <span style={{ color: cfg.text, fontSize: 12, opacity: 0.7, marginLeft: 4 }}>
-            ({d.cidr})
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {Icon && <Icon size={16} style={{ flexShrink: 0 }} />}
+          <span style={{ color: cfg.text, fontSize: 13, fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
+            {d.label}
           </span>
-        )}
+          {d.cidr && (
+            <span style={{ color: cfg.text, fontSize: 11, opacity: 0.65, whiteSpace: 'nowrap' }}>
+              ({d.cidr})
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -562,7 +576,7 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
   const nodeWidths: Record<string, number> = {}
   for (const n of apiNodes) {
     if (n.kind === 'resource') {
-      nodeWidths[n.id] = estimateNodeWidth(n.label)
+      nodeWidths[n.id] = estimateNodeWidth(n.label, n.resourceType)
     }
   }
 
@@ -599,7 +613,8 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
       for (const sid of subnets) {
         const sResIds = resKids(sid)
         const { pos, w, h } = dagreLayout(sResIds, apiEdges, nodeWidths)
-        const sw = Math.max(w + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2)
+        const minHdrW = estimateGroupHeaderWidth(byId[sid].label, byId[sid].cidr)
+        const sw = Math.max(w + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2, minHdrW)
         const sh = h + GROUP_PAD * 2 + GROUP_HEADER
         subRowH = Math.max(subRowH, sh)
 
@@ -612,12 +627,13 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
           zIndex: 1, selectable: false,
         } as Node)
 
+        const xOffset = (sw - w) / 2
         for (const rid of sResIds) {
           if (!pos[rid]) continue
           resourceNodes.push({
             id: rid, type: 'resource',
             parentId: sid, extent: 'parent',
-            position: { x: GROUP_PAD + pos[rid].x, y: GROUP_HEADER + GROUP_PAD + pos[rid].y },
+            position: { x: xOffset + pos[rid].x, y: GROUP_HEADER + GROUP_PAD + pos[rid].y },
             data: { label: byId[rid].label, category: byId[rid].category, resourceType: byId[rid].resourceType },
             zIndex: 2,
           } as Node)
@@ -630,33 +646,37 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
       const { pos: vPos, w: vW, h: vH } = dagreLayout(vpcDirect, apiEdges, nodeWidths)
       const directY = GROUP_HEADER + GROUP_PAD + subRowH + (subRowH > 0 ? GROUP_GAP : 0)
 
+      const minVpcHdrW = estimateGroupHeaderWidth(tg.label, tg.cidr)
+      tgW = Math.max(subX - GROUP_GAP + GROUP_PAD, vW + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2, minVpcHdrW)
+
+      const vxOffset = (tgW - vW) / 2
       for (const rid of vpcDirect) {
         if (!vPos[rid]) continue
         resourceNodes.push({
           id: rid, type: 'resource',
           parentId: tg.id, extent: 'parent',
-          position: { x: GROUP_PAD + vPos[rid].x, y: directY + vPos[rid].y },
+          position: { x: vxOffset + vPos[rid].x, y: directY + vPos[rid].y },
           data: { label: byId[rid].label, category: byId[rid].category, resourceType: byId[rid].resourceType },
           zIndex: 2,
         } as Node)
       }
-
-      tgW = Math.max(subX - GROUP_GAP + GROUP_PAD, vW + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2)
       tgH = directY + (vH > 0 ? vH + GROUP_PAD : GROUP_PAD)
 
     } else {
       // ── Global / flat group ─────────────────────────────────────────────────
       const resIds = resKids(tg.id)
       const { pos, w, h } = dagreLayout(resIds, apiEdges, nodeWidths)
-      tgW = Math.max(w + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2)
+      const minGlobalHdrW = estimateGroupHeaderWidth(tg.label)
+      tgW = Math.max(w + GROUP_PAD * 2, MIN_NODE_W + GROUP_PAD * 2, minGlobalHdrW)
       tgH = h + GROUP_PAD * 2 + GROUP_HEADER
 
+      const gxOffset = (tgW - w) / 2
       for (const rid of resIds) {
         if (!pos[rid]) continue
         resourceNodes.push({
           id: rid, type: 'resource',
           parentId: tg.id, extent: 'parent',
-          position: { x: GROUP_PAD + pos[rid].x, y: GROUP_HEADER + GROUP_PAD + pos[rid].y },
+          position: { x: gxOffset + pos[rid].x, y: GROUP_HEADER + GROUP_PAD + pos[rid].y },
           data: { label: byId[rid].label, category: byId[rid].category, resourceType: byId[rid].resourceType },
           zIndex: 2,
         } as Node)
