@@ -35,16 +35,19 @@ type DiagramResponse struct {
 }
 
 var (
-	edgeRe = regexp.MustCompile(`"([^"]+)"\s+->\s+"([^"]+)"`)
-	nodeRe = regexp.MustCompile(`"([^"]+)"\s+\[label="([^"]+)"\]`)
-	cidrRe = regexp.MustCompile(`resource\s+"(aws_vpc|aws_subnet)"\s+"([^"]+)"[^}]*cidr_block\s*=\s*"([^"]+)"`)
+	edgeRe    = regexp.MustCompile(`"([^"]+)"\s+->\s+"([^"]+)"`)
+	nodeRe    = regexp.MustCompile(`"([^"]+)"\s+\[label="([^"]+)"\]`)
+	cidrLitRe = regexp.MustCompile(`resource\s+"(aws_vpc|aws_subnet)"\s+"([^"]+)"[^}]*cidr_block\s*=\s*"([^"]+)"`)
+	cidrVarRe = regexp.MustCompile(`resource\s+"(aws_vpc|aws_subnet)"\s+"([^"]+)"[^}]*cidr_block\s*=\s*var\.(\w+)`)
+	varDefRe  = regexp.MustCompile(`variable\s+"([^"]+)"[^}]*default\s*=\s*"([^"]+)"`)
 )
 
 func extractCIDRs(workDir string) map[string]string {
-	cidrs := make(map[string]string)
+	// First pass: collect all variable defaults across all files
+	varDefaults := make(map[string]string)
 	files, err := os.ReadDir(workDir)
 	if err != nil {
-		return cidrs
+		return make(map[string]string)
 	}
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".tf") {
@@ -54,11 +57,33 @@ func extractCIDRs(workDir string) map[string]string {
 		if err != nil {
 			continue
 		}
-		matches := cidrRe.FindAllSubmatch(data, -1)
-		for _, m := range matches {
-			rtype, name, cidr := string(m[1]), string(m[2]), string(m[3])
-			key := rtype + "." + name
-			cidrs[key] = cidr
+		for _, m := range varDefRe.FindAllSubmatch(data, -1) {
+			varDefaults[string(m[1])] = string(m[2])
+		}
+	}
+
+	// Second pass: extract CIDRs — literal values first, then variable refs
+	cidrs := make(map[string]string)
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".tf") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(workDir, f.Name()))
+		if err != nil {
+			continue
+		}
+		for _, m := range cidrLitRe.FindAllSubmatch(data, -1) {
+			key := string(m[1]) + "." + string(m[2])
+			cidrs[key] = string(m[3])
+		}
+		for _, m := range cidrVarRe.FindAllSubmatch(data, -1) {
+			key := string(m[1]) + "." + string(m[2])
+			if _, already := cidrs[key]; already {
+				continue // literal value takes precedence
+			}
+			if val, ok := varDefaults[string(m[3])]; ok {
+				cidrs[key] = val
+			}
 		}
 	}
 	return cidrs

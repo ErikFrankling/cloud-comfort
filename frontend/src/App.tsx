@@ -587,6 +587,15 @@ function App() {
     setLogsOpen(false);
   };
 
+  const deleteFile = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, { method: "DELETE" });
+    if (selectedFile?.name === name) {
+      setSelectedFile(null);
+    }
+    fetchFiles();
+  };
+
   const formatSize = (b: number) => b < 1024 ? `${b}B` : `${(b / 1024).toFixed(1)}K`;
 
   // Extract owner/repo from GitHub URL
@@ -890,15 +899,7 @@ function App() {
 
         </div>
 
-        <button
-          className={`sidebar-toggle-btn ${!filesSidebarOpen ? "sidebar-collapsed" : ""}`}
-          onClick={() => setFilesSidebarOpen(!filesSidebarOpen)}
-          title={filesSidebarOpen ? "Hide files" : "Show files"}
-        >
-          {filesSidebarOpen ? "▶" : "◀"}
-        </button>
-
-        <div className={`files-sidebar ${!filesSidebarOpen ? "collapsed" : ""}`}>
+        <div className="files-sidebar">
           <div className="files-sidebar-header">
             <span>Files</span>
             <button
@@ -934,6 +935,11 @@ function App() {
                 <div className="file-icon">{f.name.endsWith(".tfvars") ? "⚙" : "{}"}</div>
                 <span className="file-name">{f.name}</span>
                 <span className="file-size">{formatSize(f.size)}</span>
+                <button
+                  className="file-delete-btn"
+                  onClick={(e) => deleteFile(f.name, e)}
+                  title={`Delete ${f.name}`}
+                >✕</button>
               </div>
             ))}
           </div>
