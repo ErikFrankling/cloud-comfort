@@ -15,7 +15,6 @@ import (
 	"cloud-comfort/backend/terraform"
 )
 
-const maxLoopIterations = 5
 
 type chatRequest struct {
 	Message     string              `json:"message"`
@@ -753,8 +752,7 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service, githubSvc *github.
 		var loopMessages []llm.Message
 
 		// Tool call loop — keep going until the LLM responds with just content
-		hitLimit := true
-		for i := 0; i < maxLoopIterations; i++ {
+		for i := 0; ; i++ {
 			if r.Context().Err() != nil {
 				return
 			}
@@ -781,7 +779,6 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service, githubSvc *github.
 
 			// If no tool calls, we're done
 			if len(assistantMsg.ToolCalls) == 0 {
-				hitLimit = false
 				break
 			}
 
@@ -905,11 +902,6 @@ func HandleChat(client *llm.Client, tfSvc *terraform.Service, githubSvc *github.
 			// Continue loop — LLM will summarize the plan for the user
 		}
 
-		if hitLimit {
-			sendSSEEvent(w, flusher, map[string]any{
-				"error": fmt.Sprintf("Stopped after %d fix attempts. The error likely requires manual intervention (e.g. IAM permissions, provider credentials, resource quotas).", maxLoopIterations),
-			})
-		}
 		sendSSEEvent(w, flusher, map[string]any{"done": true})
 	}
 }

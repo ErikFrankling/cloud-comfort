@@ -4,6 +4,8 @@ import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
 
 import Editor from "@monaco-editor/react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import InfraFlow, { ApiNode, ApiEdge } from "./InfraFlow";
 
 mermaid.initialize({ startOnLoad: false, theme: "dark" });
@@ -25,7 +27,13 @@ type MsgSegment =
 type ChatMsg = { role: "user" | "assistant" | "error"; segments: MsgSegment[] };
 type LLMHistory = { role: string; content: string }[];
 
-function ReasoningBlock({ content, isStreaming }: { content: string; isStreaming: boolean }) {
+function ReasoningBlock({
+  content,
+  isStreaming,
+}: {
+  content: string;
+  isStreaming: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(false);
 
@@ -51,19 +59,60 @@ function ReasoningBlock({ content, isStreaming }: { content: string; isStreaming
   );
 }
 
-function ChatSegment({ segment, isStreaming }: { segment: MsgSegment; isStreaming: boolean }) {
+const extToLang: Record<string, string> = {
+  ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
+  json: "json", py: "python", go: "go", tf: "hcl", hcl: "hcl",
+  yml: "yaml", yaml: "yaml", md: "markdown", sh: "bash",
+  css: "css", html: "html", sql: "sql", rs: "rust",
+  java: "java", rb: "ruby", toml: "toml", xml: "xml",
+  dockerfile: "docker", Dockerfile: "docker",
+};
+
+function getLangFromFilename(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  return extToLang[ext] || "text";
+}
+
+function stripFileWrapper(result: string): string {
+  // Strip "Content of <path>:\n\n```\n...\n```"
+  const match = result.match(/^Content of .+?:\n\n```\n?([\s\S]*?)\n?```$/);
+  if (match) return match[1];
+  return result;
+}
+
+function ChatSegment({
+  segment,
+  isStreaming,
+}: {
+  segment: MsgSegment;
+  isStreaming: boolean;
+}) {
   switch (segment.type) {
     case "text":
       return <Markdown remarkPlugins={[remarkGfm]}>{segment.content}</Markdown>;
     case "reasoning":
-      return <ReasoningBlock content={segment.content} isStreaming={isStreaming} />;
-    case "tool_call":
+      return (
+        <ReasoningBlock content={segment.content} isStreaming={isStreaming} />
+      );
+    case "tool_call": {
+      const code = stripFileWrapper(segment.info.result);
+      const lang = getLangFromFilename(segment.info.filename);
       return (
         <div className="tool-call-card">
-          <span className="tool-call-filename">{segment.info.filename}</span>
-          <span className="tool-call-result">{segment.info.result}</span>
+          <div className="tool-call-header">{segment.info.filename}</div>
+          <div className="tool-call-result">
+            <SyntaxHighlighter
+              language={lang}
+              style={vscDarkPlus}
+              customStyle={{ margin: 0, background: "transparent", fontSize: "0.8rem" }}
+              wrapLongLines
+            >
+              {code}
+            </SyntaxHighlighter>
+          </div>
         </div>
       );
+    }
     case "phase":
       return (
         <div className={`phase-indicator ${segment.error ? "error" : ""}`}>
@@ -95,8 +144,9 @@ function App() {
   const [chatLog, setChatLog] = useState<ChatMsg[]>([]);
   const [history, setHistory] = useState<LLMHistory>([]);
   const [sending, setSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<"graph" | "file">("graph");
-  const [logsOpen, setLogsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"graph" | "file" | "logs">(
+    "graph",
+  );
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null);
   const [fileChanged, setFileChanged] = useState(false);
@@ -105,14 +155,17 @@ function App() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [failedStep, setFailedStep] = useState<"init" | "apply" | null>(null);
   const [planReady, setPlanReady] = useState(false);
-  const [autoDeploy, setAutoDeploy] = useState(false);
-  const [deployOutputs, setDeployOutputs] = useState<Record<string, string> | null>(null);
+  const [autoDeploy, setAutoDeploy] = useState(true);
+  const [deployOutputs, setDeployOutputs] = useState<Record<
+    string,
+    string
+  > | null>(null);
   const [filesSidebarOpen, setFilesSidebarOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const autoDeployRef = useRef(false);
-  const handleDeployRef = useRef<() => void>(() => {});
+  const autoDeployRef = useRef(true);
+  const [pendingAutoDeploy, setPendingAutoDeploy] = useState(false);
   const [chatWidth, setChatWidth] = useState(400);
   const dragging = useRef(false);
 
@@ -125,7 +178,10 @@ function App() {
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!dragging.current) return;
-      const clamped = Math.min(Math.max(e.clientX, 250), window.innerWidth - 300);
+      const clamped = Math.min(
+        Math.max(e.clientX, 250),
+        window.innerWidth - 300,
+      );
       setChatWidth(clamped);
     };
     const onMouseUp = () => {
@@ -159,9 +215,13 @@ function App() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (deployStatus === "init" || deployStatus === "apply") setLogsOpen(true);
-    if (deployStatus === "success") setLogsOpen(false);
-    if (deployStatus === "error") setLogsOpen(true);
+    if (
+      deployStatus === "init" ||
+      deployStatus === "apply" ||
+      deployStatus === "error"
+    ) {
+      setActiveTab("logs");
+    }
   }, [deployStatus]);
 
   useEffect(() => {
@@ -242,7 +302,11 @@ function App() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, history, repo_context: repoContext }),
+        body: JSON.stringify({
+          message: userMsg,
+          history,
+          repo_context: repoContext,
+        }),
         signal: controller.signal,
       });
 
@@ -357,7 +421,7 @@ function App() {
               fetchFiles();
               generateDiagram();
               if (autoDeployRef.current) {
-                handleDeployRef.current();
+                setPendingAutoDeploy(true);
               }
             }
 
@@ -391,7 +455,10 @@ function App() {
           setHistory((prev) => [
             ...prev,
             { role: "user", content: userMsg },
-            { role: "assistant", content: contentAccumulated + "\n[stopped by user]" },
+            {
+              role: "assistant",
+              content: contentAccumulated + "\n[stopped by user]",
+            },
           ]);
         }
       } else {
@@ -578,30 +645,37 @@ function App() {
     }
   };
 
-  handleDeployRef.current = handleDeploy;
+  useEffect(() => {
+    if (pendingAutoDeploy && !sending) {
+      setPendingAutoDeploy(false);
+      handleDeploy();
+    }
+  }, [pendingAutoDeploy, sending]);
 
   const handleReset = () => {
     setDeployStatus("idle");
     setDeployOutput([]);
     setDeployError(null);
-    setLogsOpen(false);
   };
 
   const deleteFile = async (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, { method: "DELETE" });
+    await fetch(`/api/terraform/files/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
     if (selectedFile?.name === name) {
       setSelectedFile(null);
     }
     fetchFiles();
   };
 
-  const formatSize = (b: number) => b < 1024 ? `${b}B` : `${(b / 1024).toFixed(1)}K`;
+  const formatSize = (b: number) =>
+    b < 1024 ? `${b}B` : `${(b / 1024).toFixed(1)}K`;
 
   // Extract owner/repo from GitHub URL
   const extractRepoFromUrl = (url: string): string | null => {
     const match = url.match(/github\.com\/([^\/]+\/[^\/]+)/);
-    return match ? match[1].replace(/\.git$/, '') : null;
+    return match ? match[1].replace(/\.git$/, "") : null;
   };
 
   // Verify GitHub repo
@@ -627,7 +701,7 @@ function App() {
       }
 
       const data = await res.json();
-      
+
       if (!data.valid) {
         setRepoError(data.error || "Failed to access repository");
         setVerifyingRepo(false);
@@ -657,7 +731,6 @@ function App() {
         <div className="header-brand">
           <span className="header-icon">☁</span>
           <h1 className="header-title">Cloud Comfort</h1>
-          <span className="header-badge">AI · Terraform</span>
         </div>
       </header>
       <div className="panels">
@@ -678,17 +751,15 @@ function App() {
                     disabled={verifyingRepo}
                     className="repo-input"
                   />
-                  <button 
-                    onClick={verifyRepo} 
+                  <button
+                    onClick={verifyRepo}
                     disabled={verifyingRepo || !repoUrl.trim()}
                     className="repo-verify-btn"
                   >
                     {verifyingRepo ? "Verifying..." : "Connect"}
                   </button>
                 </div>
-                {repoError && (
-                  <div className="repo-error">{repoError}</div>
-                )}
+                {repoError && <div className="repo-error">{repoError}</div>}
               </div>
             </div>
           )}
@@ -699,19 +770,30 @@ function App() {
               <div className="repo-info">
                 <span className="repo-icon">📁</span>
                 <span className="repo-name">{repoContext.repo}</span>
-                <span className="repo-meta">{repoContext.metadata?.language} • {repoContext.file_tree?.length} files</span>
+                <span className="repo-meta">
+                  {repoContext.metadata?.language} •{" "}
+                  {repoContext.file_tree?.length} files
+                </span>
               </div>
-              <button onClick={resetRepo} className="repo-reset-btn" title="Switch repository">
+              <button
+                onClick={resetRepo}
+                className="repo-reset-btn"
+                title="Switch repository"
+              >
                 ✕
               </button>
             </div>
           )}
 
-          <div className={`chat-log ${!repoContext ? 'disabled' : ''}`}>
+          <div className={`chat-log ${!repoContext ? "disabled" : ""}`}>
             {chatLog.map((msg, i) => (
               <div key={i} className={`chat-msg ${msg.role}`}>
                 <div className="chat-msg-avatar">
-                  {msg.role === "user" ? "You" : msg.role === "assistant" ? "AI" : "!"}
+                  {msg.role === "user"
+                    ? "You"
+                    : msg.role === "assistant"
+                      ? "AI"
+                      : "!"}
                 </div>
                 <div className="chat-msg-body">
                   {msg.segments.map((seg, j) => (
@@ -737,21 +819,33 @@ function App() {
             ))}
             <div ref={chatEndRef} />
           </div>
-          <div className={`chat-input ${!repoContext ? 'disabled' : ''}`}>
+          <div className={`chat-input ${!repoContext ? "disabled" : ""}`}>
             <div className="chat-input-wrapper">
               <input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder={repoContext ? "Describe your infrastructure..." : "Connect a repository to start chatting..."}
+                placeholder={
+                  repoContext
+                    ? "Describe your infrastructure..."
+                    : "Connect a repository to start chatting..."
+                }
                 disabled={sending || !repoContext}
               />
               {sending ? (
-                <button className="chat-stop-btn" onClick={stopGeneration} title="Stop">
+                <button
+                  className="chat-stop-btn"
+                  onClick={stopGeneration}
+                  title="Stop"
+                >
                   <span>■</span>
                 </button>
               ) : (
-                <button className="chat-send-btn" onClick={() => sendMessage()} title="Send (Enter)">
+                <button
+                  className="chat-send-btn"
+                  onClick={() => sendMessage()}
+                  title="Send (Enter)"
+                >
                   <span>↑</span>
                 </button>
               )}
@@ -764,34 +858,57 @@ function App() {
         <div className="middle-panel">
           <div className="pipeline-bar">
             <div className="deploy-pipeline">
-              <div className={`pipeline-step ${
-                deployStatus === "init" ? "active" :
-                (deployStatus === "apply" || deployStatus === "success") ? "done" :
-                (deployStatus === "error" && failedStep === "init") ? "error" : ""
-              }`}>
+              <div
+                className={`pipeline-step ${
+                  deployStatus === "init"
+                    ? "active"
+                    : deployStatus === "apply" || deployStatus === "success"
+                      ? "done"
+                      : deployStatus === "error" && failedStep === "init"
+                        ? "error"
+                        : ""
+                }`}
+              >
                 <div className="pipeline-dot" />
                 <span className="pipeline-label">Init</span>
               </div>
-              <div className={`pipeline-connector ${
-                (deployStatus === "apply" || deployStatus === "success") ? "done" : ""
-              }`} />
-              <div className={`pipeline-step ${
-                deployStatus === "apply" ? "active" :
-                deployStatus === "success" ? "done" :
-                (deployStatus === "error" && failedStep === "apply") ? "error" : ""
-              }`}>
+              <div
+                className={`pipeline-connector ${
+                  deployStatus === "apply" || deployStatus === "success"
+                    ? "done"
+                    : ""
+                }`}
+              />
+              <div
+                className={`pipeline-step ${
+                  deployStatus === "apply"
+                    ? "active"
+                    : deployStatus === "success"
+                      ? "done"
+                      : deployStatus === "error" && failedStep === "apply"
+                        ? "error"
+                        : ""
+                }`}
+              >
                 <div className="pipeline-dot" />
                 <span className="pipeline-label">Apply</span>
               </div>
-              <div className={`pipeline-connector ${deployStatus === "success" ? "done" : ""}`} />
-              <div className={`pipeline-step ${deployStatus === "success" ? "done" : ""}`}>
+              <div
+                className={`pipeline-connector ${deployStatus === "success" ? "done" : ""}`}
+              />
+              <div
+                className={`pipeline-step ${deployStatus === "success" ? "done" : ""}`}
+              >
                 <div className="pipeline-dot" />
                 <span className="pipeline-label">Done</span>
               </div>
             </div>
             <div className="pipeline-bar-actions">
-              <button className="show-logs-btn" onClick={() => setLogsOpen((o) => !o)}>
-                {logsOpen ? "Hide Logs" : "Deploy Logs"}
+              <button
+                className="show-logs-btn"
+                onClick={() => setActiveTab("logs")}
+              >
+                Deploy Logs
               </button>
               <label className="auto-deploy-toggle">
                 <input
@@ -805,16 +922,24 @@ function App() {
                 Auto
               </label>
               {deployStatus === "idle" && (
-                <button className="deploy-btn" onClick={handleDeploy}>Deploy</button>
+                <button className="deploy-btn" onClick={handleDeploy}>
+                  Deploy
+                </button>
               )}
               {deployStatus === "success" && (
-                <button className="deploy-btn" onClick={handleReset}>Reset</button>
+                <button className="deploy-btn" onClick={handleReset}>
+                  Reset
+                </button>
               )}
               {(deployStatus === "error" || deployStatus === "success") && (
-                <button className="deploy-btn" onClick={handleDeploy}>Deploy Again</button>
+                <button className="deploy-btn" onClick={handleDeploy}>
+                  Deploy Again
+                </button>
               )}
               {(deployStatus === "init" || deployStatus === "apply") && (
-                <button className="deploy-btn" disabled>Running...</button>
+                <button className="deploy-btn" disabled>
+                  Running...
+                </button>
               )}
             </div>
           </div>
@@ -825,6 +950,12 @@ function App() {
               onClick={() => setActiveTab("graph")}
             >
               Flow Chart
+            </button>
+            <button
+              className={activeTab === "logs" ? "active" : ""}
+              onClick={() => setActiveTab("logs")}
+            >
+              Deploy Logs
             </button>
             {selectedFile && (
               <button
@@ -837,7 +968,14 @@ function App() {
           </div>
 
           <div className="tab-content">
-            <div style={{ display: activeTab === "graph" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
+            <div
+              style={{
+                display: activeTab === "graph" ? "flex" : "none",
+                flex: 1,
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
               <div className="file-actions">
                 <button onClick={generateDiagram} disabled={diagramLoading}>
                   {diagramLoading ? "Generating..." : "Generate Diagram"}
@@ -850,7 +988,9 @@ function App() {
               </div>
               {!diagramNodes && !diagramLoading && (
                 <div className="graph-placeholder">
-                  <p>Click Generate Diagram to visualize your infrastructure.</p>
+                  <p>
+                    Click Generate Diagram to visualize your infrastructure.
+                  </p>
                 </div>
               )}
               {diagramNodes && (
@@ -860,8 +1000,62 @@ function App() {
               )}
             </div>
 
+            <div
+              style={{
+                display: activeTab === "logs" ? "flex" : "none",
+                flex: 1,
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div className="logs-tab-panel">
+                {deployError && (
+                  <div className="logs-tab-error">
+                    <strong>Error:</strong> {deployError}
+                  </div>
+                )}
+                <div className="logs-tab-output">
+                  {deployOutput.length === 0 ? (
+                    <p className="empty-state">
+                      {planReady
+                        ? "Plan ready. Click Deploy to apply changes."
+                        : "No logs yet — click Deploy to start."}
+                    </p>
+                  ) : (
+                    deployOutput.map((line, i) => (
+                      <div
+                        key={i}
+                        className={`output-line ${line.includes("[ERROR]") ? "error" : ""}`}
+                      >
+                        {line}
+                      </div>
+                    ))
+                  )}
+                  {deployOutputs && Object.keys(deployOutputs).length > 0 && (
+                    <div className="deploy-outputs">
+                      <div className="deploy-outputs-title">Outputs</div>
+                      {Object.entries(deployOutputs).map(([key, value]) => (
+                        <div key={key} className="deploy-output-item">
+                          <span className="deploy-output-key">{key}</span>
+                          <span className="deploy-output-value">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div ref={logsEndRef} />
+                </div>
+              </div>
+            </div>
+
             {selectedFile && (
-              <div style={{ display: activeTab === "file" ? "flex" : "none", flex: 1, flexDirection: "column", overflow: "hidden" }}>
+              <div
+                style={{
+                  display: activeTab === "file" ? "flex" : "none",
+                  flex: 1,
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
+              >
                 <div className="file-editor-panel">
                   <div className="file-editor-header">
                     <span>{selectedFile.name}</span>
@@ -870,7 +1064,10 @@ function App() {
                       Download
                     </button>
                     {fileChanged && (
-                      <button onClick={saveFile} className="file-action-btn save">
+                      <button
+                        onClick={saveFile}
+                        className="file-action-btn save"
+                      >
                         Save
                       </button>
                     )}
@@ -896,7 +1093,6 @@ function App() {
               </div>
             )}
           </div>
-
         </div>
 
         <div className="files-sidebar">
@@ -922,7 +1118,9 @@ function App() {
               <div className="empty-state-files">
                 <div className="empty-state-icon">{"{}"}</div>
                 <p>No .tf files yet</p>
-                <p className="empty-state-hint">Chat with the AI to generate your first file</p>
+                <p className="empty-state-hint">
+                  Chat with the AI to generate your first file
+                </p>
               </div>
             )}
             {files.map((f, i) => (
@@ -932,63 +1130,23 @@ function App() {
                 onClick={() => viewFile(f.name)}
                 style={{ animationDelay: `${i * 50}ms` }}
               >
-                <div className="file-icon">{f.name.endsWith(".tfvars") ? "⚙" : "{}"}</div>
+                <div className="file-icon">
+                  {f.name.endsWith(".tfvars") ? "⚙" : "{}"}
+                </div>
                 <span className="file-name">{f.name}</span>
                 <span className="file-size">{formatSize(f.size)}</span>
                 <button
                   className="file-delete-btn"
                   onClick={(e) => deleteFile(f.name, e)}
                   title={`Delete ${f.name}`}
-                >✕</button>
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
-
-
         </div>
       </div>
-      {logsOpen && (
-        <div className="logs-modal-backdrop" onClick={() => setLogsOpen(false)}>
-          <div className="logs-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="logs-modal-header">
-              <span className="logs-modal-title">Deploy Logs</span>
-              <button className="logs-modal-close" onClick={() => setLogsOpen(false)}>✕</button>
-            </div>
-            {deployError && (
-              <div className="logs-modal-error">
-                <strong>Error:</strong> {deployError}
-              </div>
-            )}
-            <div className="logs-modal-output">
-              {deployOutput.length === 0 ? (
-                <p className="empty-state">
-                  {planReady
-                    ? "Plan ready. Click Deploy to apply changes."
-                    : "No logs yet — click Deploy to start."}
-                </p>
-              ) : (
-                deployOutput.map((line, i) => (
-                  <div key={i} className={`output-line ${line.includes("[ERROR]") ? "error" : ""}`}>
-                    {line}
-                  </div>
-                ))
-              )}
-              {deployOutputs && Object.keys(deployOutputs).length > 0 && (
-                <div className="deploy-outputs">
-                  <div className="deploy-outputs-title">Outputs</div>
-                  {Object.entries(deployOutputs).map(([key, value]) => (
-                    <div key={key} className="deploy-output-item">
-                      <span className="deploy-output-key">{key}</span>
-                      <span className="deploy-output-value">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div ref={logsEndRef} />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
