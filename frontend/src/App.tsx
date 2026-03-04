@@ -60,12 +60,29 @@ function ReasoningBlock({
 }
 
 const extToLang: Record<string, string> = {
-  ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
-  json: "json", py: "python", go: "go", tf: "hcl", hcl: "hcl",
-  yml: "yaml", yaml: "yaml", md: "markdown", sh: "bash",
-  css: "css", html: "html", sql: "sql", rs: "rust",
-  java: "java", rb: "ruby", toml: "toml", xml: "xml",
-  dockerfile: "docker", Dockerfile: "docker",
+  ts: "typescript",
+  tsx: "tsx",
+  js: "javascript",
+  jsx: "jsx",
+  json: "json",
+  py: "python",
+  go: "go",
+  tf: "hcl",
+  hcl: "hcl",
+  yml: "yaml",
+  yaml: "yaml",
+  md: "markdown",
+  sh: "bash",
+  css: "css",
+  html: "html",
+  sql: "sql",
+  rs: "rust",
+  java: "java",
+  rb: "ruby",
+  toml: "toml",
+  xml: "xml",
+  dockerfile: "docker",
+  Dockerfile: "docker",
 };
 
 function getLangFromFilename(filename: string): string {
@@ -104,7 +121,11 @@ function ChatSegment({
             <SyntaxHighlighter
               language={lang}
               style={vscDarkPlus}
-              customStyle={{ margin: 0, background: "transparent", fontSize: "0.8rem" }}
+              customStyle={{
+                margin: 0,
+                background: "transparent",
+                fontSize: "0.8rem",
+              }}
               wrapLongLines
             >
               {code}
@@ -727,19 +748,13 @@ function App() {
 
   return (
     <div className="app">
-      <header>
-        <div className="header-brand">
-          <span className="header-icon">☁</span>
-          <h1 className="header-title">Cloud Comfort</h1>
-        </div>
-      </header>
       <div className="panels">
         <div className="chat-panel" style={{ width: chatWidth }}>
           {/* GitHub Repo Input Overlay */}
           {!repoContext && (
             <div className="repo-input-overlay">
               <div className="repo-input-container">
-                <h3>🔗 Connect GitHub Repository</h3>
+                <h3>Connect GitHub Repository</h3>
                 <p>Paste a GitHub repository URL to get started</p>
                 <div className="repo-input-wrapper">
                   <input
@@ -768,7 +783,6 @@ function App() {
           {repoContext && (
             <div className="repo-header">
               <div className="repo-info">
-                <span className="repo-icon">📁</span>
                 <span className="repo-name">{repoContext.repo}</span>
                 <span className="repo-meta">
                   {repoContext.metadata?.language} •{" "}
