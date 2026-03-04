@@ -1,6 +1,18 @@
 # Cloud Comfort
 
-LLM-powered Terraform infrastructure assistant. Chat with an AI to create, edit, and deploy `.tf` files. The LLM writes files via tool calling, and terraform fmt/validate run automatically after each write.
+> Lovable for cloud deployments.
+
+Describe your cloud infrastructure in plain English — Cloud Comfort generates, validates, and deploys Terraform for you. Connect a GitHub repo for context, chat with an AI that writes `.tf` files, visualize your infrastructure as interactive diagrams, and deploy to AWS, GCP, or Azure with one click.
+
+Built at HackEurope 2026 by [@MZMurphy](https://github.com/MZMurphy), [@ErikFrankling](https://github.com/ErikFrankling), and [@PatrikTang](https://github.com/PatrikTang).
+
+[View on DevPost](https://devpost.com/software/cloud-comfort)
+
+![Cloud Comfort](image.png)
+
+Watch the demo:
+
+[![Watch the demo](https://img.youtube.com/vi/j551s9WimPw/maxresdefault.jpg)](https://www.youtube.com/watch?v=j551s9WimPw)
 
 **Stack:** Go backend, React/Vite frontend, OpenAI-compatible LLM API, HashiCorp terraform-exec.
 
@@ -85,38 +97,43 @@ All endpoints served on `:8080`. Frontend proxied via Vite at `:5173`.
 
 Configured via env vars in `.env`:
 
-| Var                | Default                        | Purpose                                 |
-| ------------------ | ------------------------------ | --------------------------------------- |
-| `LLM_PROVIDER`     | `openrouter`                   | LLM provider: openrouter, anthropic, openai, ollama |
-| `LLM_BASE_URL`     | (auto)                         | API base URL (auto-set based on provider) |
-| `LLM_API_KEY`      | —                              | API key for chosen provider             |
-| `LLM_MODEL`        | `openai/gpt-4o`                | Model identifier                        |
-| `LLM_STREAMING`  | `true`                         | Enable SSE streaming from LLM           |
-| `LLM_MAX_TOKENS`   | `0`                            | Max tokens per response (0 = default)   |
+| Var              | Default         | Purpose                                             |
+| ---------------- | --------------- | --------------------------------------------------- |
+| `LLM_PROVIDER`   | `openrouter`    | LLM provider: openrouter, anthropic, openai, ollama |
+| `LLM_BASE_URL`   | (auto)          | API base URL (auto-set based on provider)           |
+| `LLM_API_KEY`    | —               | API key for chosen provider                         |
+| `LLM_MODEL`      | `openai/gpt-4o` | Model identifier                                    |
+| `LLM_STREAMING`  | `true`          | Enable SSE streaming from LLM                       |
+| `LLM_MAX_TOKENS` | `0`             | Max tokens per response (0 = default)               |
 
 ### Supported Providers
 
 **OpenRouter** (default)
+
 - Base URL: `https://openrouter.ai/api/v1`
 - Models: `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`, `moonshotai/kimi-k2.5`, etc.
 - Features: Provider routing, quantization preferences
 
 **Anthropic** (native API)
+
 - Base URL: `https://api.anthropic.com`
 - Models: `claude-3-5-sonnet-20241022`, `claude-3-opus-20240229`, `claude-3-haiku-20240307`
 - Uses native `/v1/messages` API (not OpenAI-compatible)
 
 **OpenAI**
+
 - Base URL: `https://api.openai.com/v1`
 - Models: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`
 
 **Ollama** (local)
+
 - Base URL: `http://localhost:11434`
 - Models: `llama3.2`, `mistral`, `codellama`
 
 ### Provider-Specific Settings
 
 **OpenRouter only:**
+
 - `LLM_PROVIDER_SORT`: Provider preference (`throughput`, `latency`, `price`)
 - `LLM_QUANTIZATIONS`: Quantization preferences (`fp16,fp8,int4`)
 
